@@ -57,6 +57,11 @@ struct GameSessionLifecycleTestAccess
         return session._afkWarned;
     }
 
+    static double ExperienceRate(GameSession const& session, ExperienceSource source)
+    {
+        return session.GetExperienceRate(source);
+    }
+
     static std::chrono::steady_clock::time_point AfkStarted(GameSession const& session)
     {
         return session._afkStarted;
@@ -144,6 +149,15 @@ TEST_F(GameSessionLifecycleTest, LinkDeadDeadlineUsesTheLiveSettingOnTheNextWorl
     session->WorldUpdate(lostAt + std::chrono::seconds(2));
     EXPECT_FALSE(session->IsLinkDead());
     EXPECT_FALSE(session->IsAttached());
+}
+
+TEST_F(GameSessionLifecycleTest, QuestExperienceRateUsesTheLatestLiveSettingWithoutRestart)
+{
+    std::shared_ptr<GameSession> const session = MakeSession();
+    EXPECT_DOUBLE_EQ(GameSessionLifecycleTestAccess::ExperienceRate(*session, ExperienceSource::Quest), 1.0);
+
+    ASSERT_TRUE(sSettings.Set("Rate.XP.Quest", "2", { "test", 1, "unit_test" }, "double quest XP during the test").Ok());
+    EXPECT_DOUBLE_EQ(GameSessionLifecycleTestAccess::ExperienceRate(*session, ExperienceSource::Quest), 2.0);
 }
 
 TEST_F(GameSessionLifecycleTest, NotAfkResetsTheWarningAndLiveAfkTimeControlsDisconnect)

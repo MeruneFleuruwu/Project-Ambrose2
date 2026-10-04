@@ -19,6 +19,7 @@ public:
 
     virtual void RemoveSession(GameSession const* session) = 0;
     virtual std::shared_ptr<GameSession> FindSessionByCharacterId(uint64 characterId, GameSession const* except) const = 0;
+    virtual void BroadcastLevelUp(GameSession const& source, int32 level, int32 experience, int32 trainingPoints) = 0;
 };
 
 #endif

@@ -1,7 +1,10 @@
 {
-  "title": "Two wizards in the Commons see each other appear, move, jump, lose a client process and resume",
+  "title": "Two wizards in the Commons see each other level up, move, jump, lose a client process and resume",
   "include": "parts/common.json",
   "notes": [
+    "The main account is made a game master and its wizard starts with low health and mana. After both wizards enter the",
+    "Commons, '.character xp 200' levels up the main wizard; the game server logs that both clients receive MSG_LEVELUP,",
+    "the client shows the level-up effect, and the main wizard's health and mana refill to their new maxima.",
     "Two clients enter WizardCity/WC_Hub on accounts and wizards of their own. The main wizard enters first and backs",
     "away from the zone's Start, so the companion appears in front of it; the game server shows each to the other.",
     "The companion turns around to face the main wizard, which a right turn held 1.27 s does at the 2.47 rad/s the saved",
@@ -37,6 +40,8 @@
     "first": 1,
     "middle": 1,
     "last": 1,
+    "health": 1,
+    "mana": 1,
     "appearance": {
       "gender": 1,
       "race": 79806088,
@@ -74,6 +79,13 @@
     }
   },
   "steps": [
+    {
+      "action": "server_command",
+      "name": "make the main account a game master",
+      "command": "account set gmlevel {user} 2",
+      "pattern": "Security level of \\S+ set to 2",
+      "timeout": 20
+    },
     {
       "action": "wait_client_log",
       "name": "the client brings its renderer up",
@@ -263,6 +275,74 @@
       "pattern": "loaded (\\S+), and wizard {companion_wizard_guid} stands in the world",
       "timeout": 300,
       "expect": "WizardCity/WC_Hub"
+    },
+    {
+      "action": "key",
+      "name": "open the main wizard's chat line",
+      "vk": "0xBF"
+    },
+    {
+      "action": "char",
+      "name": "remove the slash before the game-master command",
+      "code": 8
+    },
+    {
+      "action": "type",
+      "name": "type the XP award",
+      "text": ".character xp 200"
+    },
+    {
+      "action": "char",
+      "name": "send the XP award",
+      "code": 13
+    },
+    {
+      "action": "wait_game_log",
+      "name": "the game master grants XP",
+      "pattern": "account \\d+ with wizard {wizard_guid} ran character xp \\d+, which worked",
+      "timeout": 20
+    },
+    {
+      "action": "wait_game_log",
+      "name": "the level-up is broadcast to both clients",
+      "pattern": "Wizard {wizard_guid} reached level \\d+ with \\d+ XP and \\d+ training point\\(s\\), shown to 2 wizard\\(s\\) in instance \\d+",
+      "from": "start",
+      "timeout": 20
+    },
+    {
+      "action": "wait_client_log",
+      "name": "the level-up refills health",
+      "pattern": "MSG_UpdateHealth: Updating health globe",
+      "timeout": 20
+    },
+    {
+      "action": "shot",
+      "name": "the companion sees the main wizard level up",
+      "file": "companion-sees-level-up",
+      "client": "companion",
+      "settle": 0.1
+    },
+    {
+      "action": "shot",
+      "name": "the main wizard's health and mana refill",
+      "file": "main-level-up-vitals",
+      "settle": 1
+    },
+    {
+      "action": "key",
+      "name": "open the main wizard's character stats",
+      "vk": "0x43"
+    },
+    {
+      "action": "shot",
+      "name": "the main wizard's character sheet shows the new level",
+      "file": "main-level-up-character-stats",
+      "settle": 1
+    },
+    {
+      "action": "key",
+      "name": "close the main wizard's character stats",
+      "vk": "0x43"
     },
     {
       "action": "shot",

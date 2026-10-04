@@ -5,6 +5,7 @@
 
 #include "World.h"
 #include "ChatMgr.h"
+#include "GameMessages.h"
 #include "GameSession.h"
 #include "Log.h"
 #include "MapMgr.h"
@@ -309,6 +310,31 @@ void World::RemoveSession(GameSession const* session)
         if (held.get() == session)
             held->_world = nullptr;
     std::erase_if(_sessions, [session](std::shared_ptr<GameSession> const& held) { return held.get() == session; });
+}
+
+void World::BroadcastLevelUp(GameSession const& source, int32 level, int32 experience, int32 trainingPoints)
+{
+    std::optional<uint32> const mapId = source.GetMapId();
+    if (!mapId || !source.IsShown())
+        return;
+
+    GameMessages::LevelUp message;
+    message.GlobalId = source.GetWorldGuid();
+    message.Data = "0000000000";
+    message.NewLevel = level;
+    message.XP = experience;
+    message.TrainingPoints = trainingPoints;
+
+    std::size_t recipients = 0;
+    for (std::shared_ptr<GameSession> const& viewer : GetSessions())
+    {
+        if (!viewer->IsOpen() || !viewer->IsShown() || viewer->GetMapId() != mapId)
+            continue;
+        viewer->SendDmlMessage(message);
+        ++recipients;
+    }
+    LOG_DEBUG("server.world", "Wizard {} reached level {} with {} XP and {} training point(s), shown to {} wizard(s) in instance {}", source.GetWorldGuid(), level,
+        experience, trainingPoints, recipients, *mapId);
 }
 
 std::size_t World::GetSessionCount() const

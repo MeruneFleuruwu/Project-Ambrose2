@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * The game service ids and the messages the game server decodes or sends, declared by tag with only the fields it reads or sets: the attach a client sends the moment it reconnects, carrying the key the login server gave it and the wizard and place it was promised, the refusal that sends it back where it came from, the login completion that hands it its own wizard's object and the zone it stands in, each object of that zone the server sends it, as the unwrapped CoreObject Data the client builds it from, and the id of one that leaves its view, another wizard's move as its client packed it with that wizard's mobile id and its movement state with its global id, the note the client sends once it has loaded that zone, naming it by the string hash of its path, the first typed messages and stubs for WizCombat service 51, and the WIZARD messages a client sends as it enters: its requests for timed access passes, subscriber-only items and its crown balance with the replies that answer them, and its notes on its screen, its patch time, its shopping and its quest finder; the spell the server adds to a wizard's spellbook or takes from it, named by its template id, which DML carries as an INT holding the id's bits; and what a wizard says for the others around it to see: a typed line, whose Message holds the text as a wide string packed into the byte field, a quick chat phrase by id, a phrase in the extended form and an emote a wizard plays, each with the reply that shows it but the emote, which is shown as a state, which names the speaker by the name the client's name codec packs and by global id. Live vitals, gold and potions have typed update messages for the wizard HUD, and the server accepts the client's fieldless MSG_USEPOTION request; it also declares MSG_ELIXIRSTATECHANGE for later elixir effects. It also declares MSG_QUERY_LOGOUT, which the server answers, MSG_CLIENT_DISCONNECT and MSG_NOT_AFK, and the MSG_ZOMBIE_PLAYER, MSG_DISCONNECT_AFK and MSG_SERVERSHUTDOWN notices it sends when a wizard drops, idles or the server stops, and the wizbang state a wizard's client names with the wizbang the server shows the wizards around it.
+ * The game service ids and the messages the game server decodes or sends, declared by tag with only the fields it reads or sets: the attach a client sends the moment it reconnects, carrying the key the login server gave it and the wizard and place it was promised, the refusal that sends it back where it came from, the login completion that hands it its own wizard's object and the zone it stands in, each object of that zone the server sends it, as the unwrapped CoreObject Data the client builds it from, and the id of one that leaves its view, another wizard's move as its client packed it with that wizard's mobile id and its movement state with its global id, the note the client sends once it has loaded that zone, naming it by the string hash of its path, the first typed messages and stubs for WizCombat service 51, and the WIZARD messages a client sends as it enters: its requests for timed access passes, subscriber-only items and its crown balance with the replies that answer them, and its notes on its screen, its patch time, its shopping and its quest finder; the spell the server adds to a wizard's spellbook or takes from it, named by its template id, which DML carries as an INT holding the id's bits; and what a wizard says for the others around it to see: a typed line, whose Message holds the text as a wide string packed into the byte field, a quick chat phrase by id, a phrase in the extended form and an emote a wizard plays, each with the reply that shows it but the emote, which is shown as a state, which names the speaker by the name the client's name codec packs and by global id. Live vitals, gold, potions and XP progression have typed update messages for the wizard HUD, including level, training, overflow and level-lock messages; the server accepts the client's fieldless MSG_USEPOTION request and MSG_LOCKLEVEL, and declares MSG_ELIXIRSTATECHANGE for later elixir effects. It also declares MSG_QUERY_LOGOUT, which the server answers, MSG_CLIENT_DISCONNECT and MSG_NOT_AFK, and the MSG_ZOMBIE_PLAYER, MSG_DISCONNECT_AFK and MSG_SERVERSHUTDOWN notices it sends when a wizard drops, idles or the server stops, and the wizbang state a wizard's client names with the wizbang the server shows the wizards around it.
  */
 
 #ifndef AMBROSE_GAMEMESSAGES_H
@@ -15,6 +15,7 @@
 namespace GameMessages
 {
     inline constexpr uint8 GameService = 5;
+    inline constexpr uint8 PetService = 9;
     inline constexpr uint8 WizardService = 12;
     inline constexpr uint8 CombatService = 51;
     inline constexpr uint8 Wizard2Service = 53;
@@ -754,6 +755,65 @@ namespace GameMessages
         }
     };
 
+    struct UpdateXP
+    {
+        static constexpr uint8 ServiceId = WizardService;
+        static constexpr std::string_view Tag = "MSG_UPDATEXP";
+
+        uint64 GlobalId = 0;
+        int32 XP = 0;
+        int32 OldXP = 0;
+
+        static constexpr auto Fields()
+        {
+            return std::tuple{ DmlField("GlobalID", &UpdateXP::GlobalId), DmlField("XP", &UpdateXP::XP), DmlField("OldXP", &UpdateXP::OldXP) };
+        }
+    };
+
+    struct LevelUp
+    {
+        static constexpr uint8 ServiceId = WizardService;
+        static constexpr std::string_view Tag = "MSG_LEVELUP";
+
+        uint64 GlobalId = 0;
+        std::string Data;
+        int32 NewLevel = 0;
+        int32 XP = 0;
+        int32 TrainingPoints = 0;
+
+        static constexpr auto Fields()
+        {
+            return std::tuple{ DmlField("GlobalID", &LevelUp::GlobalId), DmlField("Data", &LevelUp::Data), DmlField("NewLevel", &LevelUp::NewLevel),
+                DmlField("XP", &LevelUp::XP), DmlField("TrainingPoints", &LevelUp::TrainingPoints) };
+        }
+    };
+
+    struct UpdateTraining
+    {
+        static constexpr uint8 ServiceId = WizardService;
+        static constexpr std::string_view Tag = "MSG_UPDATETRAINING";
+
+        int32 TrainingPoints = 0;
+
+        static constexpr auto Fields()
+        {
+            return std::tuple{ DmlField("TrainingPoints", &UpdateTraining::TrainingPoints) };
+        }
+    };
+
+    struct PetEnergyMax
+    {
+        static constexpr uint8 ServiceId = PetService;
+        static constexpr std::string_view Tag = "MSG_PETENERGYMAX";
+
+        int32 MaxEnergy = 0;
+
+        static constexpr auto Fields()
+        {
+            return std::tuple{ DmlField("MaxEnergy", &PetEnergyMax::MaxEnergy) };
+        }
+    };
+
     struct UpdateMana
     {
         static constexpr uint8 ServiceId = WizardService;
@@ -895,6 +955,32 @@ namespace GameMessages
         static constexpr auto Fields()
         {
             return std::tuple{ DmlField("Stat", &UpdateArchmastery::Stat) };
+        }
+    };
+
+    struct UpdateOverflowXP
+    {
+        static constexpr uint8 ServiceId = Wizard3Service;
+        static constexpr std::string_view Tag = "MSG_UPDATEOVERFLOWXP";
+
+        uint32 OverflowXP = 0;
+
+        static constexpr auto Fields()
+        {
+            return std::tuple{ DmlField("OverflowXP", &UpdateOverflowXP::OverflowXP) };
+        }
+    };
+
+    struct LockLevel
+    {
+        static constexpr uint8 ServiceId = Wizard3Service;
+        static constexpr std::string_view Tag = "MSG_LOCKLEVEL";
+
+        uint8 Unlock = 0;
+
+        static constexpr auto Fields()
+        {
+            return std::tuple{ DmlField("Unlock", &LockLevel::Unlock) };
         }
     };
 }

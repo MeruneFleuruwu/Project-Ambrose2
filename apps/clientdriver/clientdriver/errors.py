@@ -10,5 +10,9 @@ class StepFailed(DriverError):
     pass
 
 
+class ClickTimedOut(StepFailed):
+    pass
+
+
 class Refused(DriverError):
     pass

@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * The character group: game-master commands for changing the wizard in the caller's live game session, including HUD updates for gold, mana, health and potion capacity.
+ * The character group: game-master commands for changing the wizard in the caller's live game session, including HUD updates for level, XP, gold, mana, health and potion capacity.
  */
 
 #include "AccountMgr.h"
@@ -109,14 +109,55 @@ namespace
         return true;
     }
 
-    bool NotInWorldYet(CommandCaller& caller, std::string what, std::vector<std::string> const& arguments)
+    bool SetLevel(CommandCaller& caller, std::vector<std::string> const& arguments)
     {
-        std::optional<int64> const value = ReadValue(caller, what, arguments);
+        std::optional<int64> const value = ReadValue(caller, "level", arguments);
         if (!value)
             return false;
-        if (!InWorldSession(caller))
+        if (*value < 1 || *value > std::numeric_limits<int32>::max())
+        {
+            caller.Reply("Level must be a positive 32-bit integer within the wizard's school level table.");
             return false;
-        caller.Reply(fmt::format("Setting {} to {} is not implemented yet", what, *value));
+        }
+        GameSession* const session = InWorldSession(caller);
+        if (!session)
+            return false;
+        PlayerLevelChange const change = session->SetLevel(static_cast<int32>(*value));
+        if (!change.Problem.empty())
+        {
+            caller.Reply(change.Problem);
+            return false;
+        }
+        PlayerStats const* const stats = session->GetStats();
+        caller.Reply(fmt::format("Level is now {} with {} XP.", stats->GetLevel(), stats->GetExperience()));
+        return true;
+    }
+
+    bool GiveXP(CommandCaller& caller, std::vector<std::string> const& arguments)
+    {
+        std::optional<int64> const value = ReadValue(caller, "xp", arguments);
+        if (!value)
+            return false;
+        if (*value < 0)
+        {
+            caller.Reply("XP cannot be negative.");
+            return false;
+        }
+        GameSession* const session = InWorldSession(caller);
+        if (!session)
+            return false;
+        PlayerLevelChange const change = session->GiveXP(*value, ExperienceSource::Command);
+        if (!change.Problem.empty())
+        {
+            caller.Reply(change.Problem);
+            return false;
+        }
+        PlayerStats const* const stats = session->GetStats();
+        if (change.AwardedXP == 0)
+            caller.Reply(fmt::format("No XP was awarded. Wizard remains level {} with {} XP.", stats->GetLevel(), stats->GetExperience()));
+        else
+            caller.Reply(fmt::format("Awarded {} XP. Wizard is level {} with {} XP and {} overflow XP.", change.AwardedXP, stats->GetLevel(), stats->GetExperience(),
+                stats->GetOverflowXP()));
         return true;
     }
 
@@ -127,18 +168,14 @@ namespace
 
         std::vector<ChatCommand> GetCommands() const override
         {
-            auto const sets = [](char const* what)
-            {
-                return [what](CommandCaller& caller, std::vector<std::string> const& arguments) { return NotInWorldYet(caller, what, arguments); };
-            };
             return {
                 { .Name = "character", .SecurityLevel = SEC_GAMEMASTER, .Help = "change a wizard", .Children = {
-                    { .Name = "level", .SecurityLevel = SEC_GAMEMASTER, .Help = "set a wizard's level", .Run = sets("level") },
+                    { .Name = "level", .SecurityLevel = SEC_GAMEMASTER, .Help = "set the current wizard's level", .Run = SetLevel },
                     { .Name = "gold", .SecurityLevel = SEC_GAMEMASTER, .Help = "set the current wizard's gold", .Run = SetGold },
                     { .Name = "mana", .SecurityLevel = SEC_GAMEMASTER, .Help = "set the current wizard's mana", .Run = SetMana },
                     { .Name = "heal", .SecurityLevel = SEC_GAMEMASTER, .Help = "restore the current wizard to full health", .Run = Heal },
                     { .Name = "potion", .SecurityLevel = SEC_GAMEMASTER, .Help = "set the current wizard's potion capacity and fill it", .Run = SetPotion },
-                    { .Name = "xp", .SecurityLevel = SEC_GAMEMASTER, .Help = "set a wizard's experience", .Run = sets("experience") },
+                    { .Name = "xp", .SecurityLevel = SEC_GAMEMASTER, .Help = "grant XP to the current wizard", .Run = GiveXP },
                 } },
             };
         }

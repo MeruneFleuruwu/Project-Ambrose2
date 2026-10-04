@@ -380,6 +380,16 @@ CharacterOpResult CharacterRepository::SavePosition(uint64 guid, float x, float 
     return CharacterDatabase.DirectExecute(*statement) ? CharacterOpResult::Ok : CharacterOpResult::DatabaseError;
 }
 
+CharacterOpResult CharacterRepository::SaveProgress(uint64 guid, int32 level, int32 experience, uint64 revision)
+{
+    if (guid == 0 || level < 1 || experience < 0 || revision == 0)
+        return CharacterOpResult::InvalidData;
+    Statement const statement = PrepareSaveProgress(guid, level, experience, revision);
+    if (!statement)
+        return CharacterOpResult::DatabaseError;
+    return CharacterDatabase.DirectExecute(*statement) ? CharacterOpResult::Ok : CharacterOpResult::DatabaseError;
+}
+
 CharacterRepository::Statement CharacterRepository::PrepareSavePosition(uint64 guid, float x, float y, float z, float orientation, uint64 revision)
 {
     Statement statement = Prepare(CHAR_UPD_POSITION);
@@ -392,6 +402,21 @@ CharacterRepository::Statement CharacterRepository::PrepareSavePosition(uint64 g
     statement->SetData(4, revision);
     statement->SetData(5, guid);
     statement->SetData(6, revision);
+    return statement;
+}
+
+CharacterRepository::Statement CharacterRepository::PrepareSaveProgress(uint64 guid, int32 level, int32 experience, uint64 revision)
+{
+    if (guid == 0 || level < 1 || experience < 0 || revision == 0)
+        return nullptr;
+    Statement statement = Prepare(CHAR_UPD_PROGRESS);
+    if (!statement)
+        return statement;
+    statement->SetData(0, level);
+    statement->SetData(1, experience);
+    statement->SetData(2, revision);
+    statement->SetData(3, guid);
+    statement->SetData(4, revision);
     return statement;
 }
 

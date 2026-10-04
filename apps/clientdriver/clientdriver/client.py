@@ -9,7 +9,7 @@ import threading
 import time
 
 from . import screens
-from .errors import StepFailed
+from .errors import ClickTimedOut, StepFailed
 from .logtail import LogTail
 
 WINDOW_CLASS = "Wizard Graphical Client"
@@ -530,6 +530,7 @@ class Client:
                                   win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
 
     def click(self, x, y, dwell=0.35):
+        import pywintypes
         import win32con
         import win32gui
 
@@ -538,7 +539,12 @@ class Client:
         position = (y << 16) | (x & 0xFFFF)
 
         def send(message, wparam):
-            win32gui.SendMessageTimeout(self.handle, message, wparam, position, SMTO_ABORTIFHUNG, 3000)
+            try:
+                win32gui.SendMessageTimeout(self.handle, message, wparam, position, SMTO_ABORTIFHUNG, 3000)
+            except pywintypes.error as error:
+                if error.args and error.args[0] == 1460:
+                    raise ClickTimedOut("the client stopped responding while the click was being sent") from error
+                raise
 
         with self.activated() as active, self.cursor_at(x, y):
             send(win32con.WM_MOUSEMOVE, 0)

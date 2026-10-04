@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * Checks that MSG_PLAYERWIZBANG is dispatched only for an in-world wizard and that the named spellbook state maps to the client identifier while all other states clear it.
+ * Checks that MSG_PLAYERWIZBANG and MSG_LOCKLEVEL are dispatched only for an in-world wizard, XP progression updates are server-sent, and the named spellbook state maps to the client identifier while all other states clear it.
  */
 
 #include "GameMessageTable.h"
@@ -39,4 +39,25 @@ TEST(WizardDispatchTest, OnlyTheSpellbookStateHasANonzeroWizBangId)
     EXPECT_EQ(PlayerWizBang::IdForState("SpellbookWizbang"), PlayerWizBang::SpellbookId);
     EXPECT_EQ(PlayerWizBang::IdForState(""), 0u);
     EXPECT_EQ(PlayerWizBang::IdForState("Jumping"), 0u);
+}
+
+TEST(WizardDispatchTest, LevelLockIsQueuedAndProgressMessagesAreServerSent)
+{
+    GameTesting::GameDefinitions definitions;
+    MessageCatalogPtr const catalog = sMessageRegistry.GetCatalog();
+    ASSERT_TRUE(catalog);
+
+    MessageInfo const* const lockLevel = catalog->Find(GameMessages::Wizard3Service, "MSG_LOCKLEVEL");
+    ASSERT_NE(lockLevel, nullptr);
+    MessageRule const* const lockHandler = GameMessageTable::Get().FindRule(catalog, GameMessages::Wizard3Service, lockLevel->Definition->Order);
+    ASSERT_NE(lockHandler, nullptr);
+    EXPECT_EQ(lockHandler->Kind, MessageRuleKind::Handled);
+    EXPECT_EQ(lockHandler->Statuses, SessionStatuses::InWorld);
+    EXPECT_EQ(lockHandler->Processing, MessageProcessing::Queued);
+
+    EXPECT_TRUE(catalog->IsDeclared<GameMessages::UpdateXP>());
+    EXPECT_TRUE(catalog->IsDeclared<GameMessages::LevelUp>());
+    EXPECT_TRUE(catalog->IsDeclared<GameMessages::UpdateTraining>());
+    EXPECT_TRUE(catalog->IsDeclared<GameMessages::UpdateOverflowXP>());
+    EXPECT_TRUE(catalog->IsDeclared<GameMessages::PetEnergyMax>());
 }

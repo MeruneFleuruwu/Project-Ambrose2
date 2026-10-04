@@ -7,7 +7,7 @@ import time
 
 from . import screens
 from .automation import WindowAutomation
-from .errors import StepFailed
+from .errors import ClickTimedOut, StepFailed
 from .scenario import LITERAL_IN_PATTERNS, fill
 
 MAX_DWELL = 0.5
@@ -479,11 +479,21 @@ class Engine:
                 time.sleep(step.get("dwell_step", 0.3) * attempt)
             if step.get("on_screen") and not self.on_screen(step["on_screen"]):
                 raise StepFailed(f"the {step['on_screen']} screen is no longer there, so {target} was not pressed")
-            if step.get("watch"):
-                (said, active), filmed = self.watch_while(step, lambda: self.client.click(x, y, dwell=dwell), "the press was made")
-                said = f"{said}; {filmed}"
-            else:
-                said, active = self.client.click(x, y, dwell=dwell)
+            try:
+                if step.get("watch"):
+                    (said, active), filmed = self.watch_while(step, lambda: self.client.click(x, y, dwell=dwell), "the press was made")
+                    said = f"{said}; {filmed}"
+                else:
+                    said, active = self.client.click(x, y, dwell=dwell)
+            except ClickTimedOut as error:
+                self.current = None
+                if not until:
+                    raise
+                try:
+                    self.perform(dict(until, name=f"{name}: the check that it took"))
+                except StepFailed as check_error:
+                    raise StepFailed(f"the {target} press timed out and its follow-up check did not confirm it: {check_error}") from error
+                return f"pressed {target}: the client stopped responding after the press, but its follow-up check confirmed it"
             self.current = None
             if until:
                 try:

@@ -58,6 +58,7 @@ void CharacterDatabaseConnection::DoPrepareStatements()
         + "`revision` = GREATEST(`revision`, VALUES(`revision`))", ConnectionFlags::Both);
     PrepareStatement(CHAR_UPD_POSITION, "CHAR_UPD_POSITION", "UPDATE `characters` SET `pos_x` = ?, `pos_y` = ?, `pos_z` = ?, `orientation` = ?, `state_revision` = ? WHERE `guid` = ? AND `state_revision` < ?",
         ConnectionFlags::Both);
+    PrepareStatement(CHAR_UPD_PROGRESS, "CHAR_UPD_PROGRESS", "UPDATE `characters` SET `level` = ?, `xp` = ?, `state_revision` = ? WHERE `guid` = ? AND `state_revision` < ?", ConnectionFlags::Both);
     PrepareStatement(CHAR_SEL_CHARACTER_SPELLS, "CHAR_SEL_CHARACTER_SPELLS", "SELECT s.`guid` IS NOT NULL, s.`spell_id`, s.`known`, s.`learned`, s.`revision` FROM `characters` c "
         "LEFT JOIN `character_spell` s ON s.`guid` = c.`guid` WHERE c.`guid` = ? ORDER BY s.`learned`, s.`spell_id`", ConnectionFlags::Both);
     PrepareStatement(CHAR_REP_CHARACTER_SPELL, "CHAR_REP_CHARACTER_SPELL", "INSERT INTO `character_spell` (`guid`, `spell_id`, `known`, `learned`, `revision`) VALUES (?, ?, ?, ?, ?) "

@@ -1,9 +1,11 @@
 /*
  * Project Ambrose by Imjustchico
- * Applies live stat changes to a wizard, persists only character-backed values, consumes a potion only when it holds a full charge, and schedules each later refill with the current interval.
+ * Applies live stat and XP changes to a wizard, persists only character-backed values, consumes a potion only when it holds a full charge, and schedules each later refill with the current interval.
  */
 
 #include "Player.h"
+
+#include <cmath>
 
 bool Player::SetHealth(int32 value) noexcept
 {
@@ -83,4 +85,51 @@ bool Player::SetShadowPipRating(float value) noexcept
     bool const changed = _stats.SetShadowPipRating(value);
     _dirtyStats = _dirtyStats || changed;
     return changed;
+}
+
+bool Player::SetXpPercentIncrease(double value) noexcept
+{
+    if (!std::isfinite(value) || value < 0.0 || _xpPercentIncrease == value)
+        return false;
+    _xpPercentIncrease = value;
+    return true;
+}
+
+PlayerLevelChange Player::GiveXP(int64 amount, ExperienceSource source, double rate)
+{
+    if (!_levels)
+    {
+        PlayerLevelChange change;
+        change.Problem = "the wizard has no level-table snapshot";
+        return change;
+    }
+    PlayerLevelChange change = PlayerLevel::GiveXP(_stats, *_levels, amount, source, rate, _xpPercentIncrease);
+    _dirtyStats = _dirtyStats || change.HasChanges();
+    return change;
+}
+
+PlayerLevelChange Player::SetLevelLocked(bool locked)
+{
+    if (!_levels)
+    {
+        PlayerLevelChange change;
+        change.Problem = "the wizard has no level-table snapshot";
+        return change;
+    }
+    PlayerLevelChange change = PlayerLevel::SetLevelLocked(_stats, *_levels, locked);
+    _dirtyStats = _dirtyStats || change.HasChanges();
+    return change;
+}
+
+PlayerLevelChange Player::SetLevel(int32 level)
+{
+    if (!_levels)
+    {
+        PlayerLevelChange change;
+        change.Problem = "the wizard has no level-table snapshot";
+        return change;
+    }
+    PlayerLevelChange change = PlayerLevel::SetLevel(_stats, *_levels, level);
+    _dirtyStats = _dirtyStats || change.HasChanges();
+    return change;
 }

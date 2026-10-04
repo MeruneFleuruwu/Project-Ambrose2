@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * Lists the messages the game server knows about: MSG_ATTACH is handled on connection, MSG_USEPOTION is queued for the world thread, WIZARD HUD updates and ELIXIRSTATECHANGE are declared as server messages and refused inbound, as are MSG_LOGINCOMPLETE and the object and movement messages; client movement, chat, spellbook, combat and the other entered-world messages are handled at their proper session states, and every message the server sends is declared by its typed fields. Every other GAME, WIZARD, DOODLEDOUG_MESSAGES, WIZARD2 and WIZARD3 message is named once by PendingRest, because the world's services are the game server's own and hold hundreds of messages and the milestone that answers each will claim it by name then; until then one arrives as a message this server does not handle yet, which is reported, rather than as one it has never heard of.
+ * Lists the messages the game server knows about: MSG_ATTACH is handled on connection, MSG_USEPOTION and MSG_LOCKLEVEL are queued for the world thread, WIZARD HUD updates including XP progression are declared as server messages and refused inbound, as are MSG_LOGINCOMPLETE and the object and movement messages; client movement, chat, spellbook, combat and the other entered-world messages are handled at their proper session states, and every message the server sends is declared by its typed fields. Every other GAME, WIZARD, DOODLEDOUG_MESSAGES, WIZARD2 and WIZARD3 message is named once by PendingRest, because the world's services are the game server's own and hold hundreds of messages and the milestone that answers each will claim it by name then; until then one arrives as a message this server does not handle yet, which is reported, rather than as one it has never heard of.
  */
 
 #include "GameMessageTable.h"
@@ -42,6 +42,7 @@ namespace
 
             SessionStatusMask const inWorld = SessionStatuses::InWorld;
             Accept<&GameSession::HandleUsePotion>(inWorld, MessageProcessing::Queued, "GameSession::HandleUsePotion");
+            Accept<&GameSession::HandleLockLevel>(inWorld, MessageProcessing::Queued, "GameSession::HandleLockLevel");
             Accept<&GameSession::HandlePlayerWizBang>(inWorld, MessageProcessing::Queued, "GameSession::HandlePlayerWizBang");
             Accept<&GameSession::HandleCombatMove>(inWorld, MessageProcessing::InPlace, "GameSession::HandleCombatMove");
             Accept<&GameSession::HandleCombatDraw>(inWorld, MessageProcessing::InPlace, "GameSession::HandleCombatDraw");
@@ -64,6 +65,9 @@ namespace
             Refuse(WizardService, "MSG_ADDSPELLTOBOOK");
             Refuse(WizardService, "MSG_REMOVESPELLFROMBOOK");
             Refuse(WizardService, "MSG_UPDATEHEALTH");
+            Refuse(WizardService, "MSG_UPDATEXP");
+            Refuse(WizardService, "MSG_LEVELUP");
+            Refuse(WizardService, "MSG_UPDATETRAINING");
             Refuse(WizardService, "MSG_UPDATEMANA");
             Refuse(WizardService, "MSG_UPDATEGOLD");
             Refuse(WizardService, "MSG_UPDATEPOWERPIP");
@@ -73,6 +77,7 @@ namespace
             Refuse(Wizard2Service, "MSG_UPDATEMAXSHADOWPIPS");
             Refuse(Wizard2Service, "MSG_UPDATEPIPCONVERSION");
             Refuse(Wizard3Service, "MSG_UPDATEARCHMASTERY");
+            Refuse(Wizard3Service, "MSG_UPDATEOVERFLOWXP");
 
             SessionStatusMask const any = SessionStatuses::Connected | SessionStatuses::Authenticated | SessionStatuses::CharacterSelected | SessionStatuses::LoggedIn | SessionStatuses::InWorld;
             PendingRest(GameService, any);
@@ -104,6 +109,10 @@ namespace
             Sends<DisconnectAfk>();
             Sends<ServerShutdown>();
             Sends<UpdateHealth>();
+            Sends<UpdateXP>();
+            Sends<LevelUp>();
+            Sends<UpdateTraining>();
+            Sends<PetEnergyMax>();
             Sends<UpdateMana>();
             Sends<UpdateGold>();
             Sends<UpdatePowerPip>();
@@ -113,6 +122,7 @@ namespace
             Sends<UpdateMaxShadowPips>();
             Sends<UpdatePipConversion>();
             Sends<UpdateArchmastery>();
+            Sends<UpdateOverflowXP>();
 
             SystemMessages::AddRules(*this);
         }

@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * A wizard's current stats: its level, experience and school from its character row, what character_stats keeps, and what its school's row for its level gives, including base health, mana, gold pouch, energy, power pip chance, shadow pip rating, archmastery and pip conversion rating; live changes clamp to those bases, persist health, mana, gold and potion state, fill the client objects and give back the row a save writes.
+ * A wizard's current stats: its level, experience and school from its character row, what character_stats keeps, and what its school's row for its level gives, including base health, mana, gold pouch, energy, power pip chance, shadow pip rating, archmastery and pip conversion rating; live XP progression changes its level, base values, overflow, training points and lock flag.
  */
 
 #ifndef AMBROSE_PLAYERSTATS_H
@@ -29,6 +29,8 @@ public:
     uint32 GetSchoolId() const noexcept { return _schoolId; }
     int32 GetLevel() const noexcept { return _level; }
     int32 GetExperience() const noexcept { return _experience; }
+    int32 GetOverflowXP() const noexcept { return _stored.OverflowXp; }
+    bool IsLevelLocked() const noexcept { return _stored.LevelLocked; }
     PlayerLevelInfo const& GetBase() const noexcept { return _base; }
     std::optional<int32> GetShadowPipMax() const noexcept { return _shadowPipMax; }
     int32 GetMaxHitpoints() const noexcept { return _base.Hitpoints; }
@@ -56,6 +58,8 @@ public:
     bool WriteSchool(PropertyObject& behavior, std::string& problem) const;
 
 private:
+    friend class PlayerLevel;
+
     uint32 _schoolId = 0;
     int32 _level = 0;
     int32 _experience = 0;

@@ -1,5 +1,6 @@
 # Project Ambrose by Imjustchico
 # Self-tests for every part of the client driver that has no client in it: the log tailer against recorded fixtures, the scenario loader with its includes, variables and patterns and the wizard a scenario seeds for the game server and the companion client that shows a second wizard, the scratch game server's settings, the zone rows' cache and the copy of a wizard from another database, the reference file, the screen matcher on synthetic frames, the step engine against a fake client and a fake server, the order in which a run starts and stops what it owns, the guard's rule for which processes are its own, the capture that ends what it started, the teardown that decides from the client's own log whether it may be asked to quit, the crop rebuild that refuses a picture of the wrong screen, the report builder against recorded logs, and the check that decides whether a machine can run a scenario, and the ports a scenario watches, the launcher command run without its patch flag and the report's checks for both, and the launcher window a scenario opens, read and pressed through a fake of UI Automation.
+import contextlib
 import json
 import os
 import re
@@ -7,13 +8,14 @@ import socket
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from clientdriver import capture, client, database, engine, install, listeners, netguard, paths, preflight, references, refscapture, report, run, scenario, screens, server, zones
-from clientdriver.errors import Refused, StepFailed
+from clientdriver.errors import ClickTimedOut, Refused, StepFailed
 from clientdriver.logtail import LogTail, read_lines
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
@@ -848,6 +850,30 @@ class FakeDatabases:
         return 1
 
 
+class ClientClickTests(unittest.TestCase):
+    def test_a_win32_message_timeout_is_reported_as_an_uncertain_click(self):
+        class WinError(Exception):
+            pass
+
+        win32gui = types.SimpleNamespace(SendMessageTimeout=mock.Mock(side_effect=[None, WinError(1460, "timeout")]))
+        modules = {
+            "pywintypes": types.SimpleNamespace(error=WinError),
+            "win32con": types.SimpleNamespace(WM_MOUSEMOVE=1, WM_LBUTTONDOWN=2, WM_LBUTTONUP=3),
+            "win32gui": win32gui,
+        }
+        instance = client.Client.__new__(client.Client)
+        instance.handle = 1
+
+        with mock.patch.dict(sys.modules, modules), \
+             mock.patch.object(client, "wait_until_released"), \
+             mock.patch.object(client.Client, "activated", return_value=contextlib.nullcontext(True)), \
+             mock.patch.object(client.Client, "cursor_at", return_value=contextlib.nullcontext()):
+            with self.assertRaisesRegex(ClickTimedOut, "stopped responding"):
+                instance.click(5, 5, dwell=0)
+
+        self.assertEqual(win32gui.SendMessageTimeout.call_count, 2)
+
+
 class EngineTests(TemporaryFolder):
     def build(self, steps, picture=None, answers=("0",), variables=None, expect_failure=False, companion=False, launch=None):
         document = {"title": "a scenario for the tests", "steps": steps}
@@ -1157,6 +1183,36 @@ class EngineTests(TemporaryFolder):
         with self.assertRaises(StepFailed):
             running.run()
         self.assertEqual([dwell for _x, _y, dwell in self.client.presses], [engine.MAX_DWELL] * 3)
+
+    def test_a_timed_out_press_is_confirmed_by_its_follow_up_check(self):
+        running = self.build([{"action": "click", "name": "press the button", "target": "press", "attempts": 5,
+                               "dwell": 0.0, "dwell_step": 0.0,
+                               "until": {"action": "wait_client_log", "pattern": r"AppCloseConnection\(\) called",
+                                         "timeout": 0.05}}])
+
+        def after_press(_taken):
+            self.write(os.path.join("client", "WizardClient.log"), ["09/17/26 [STAT] AppCloseConnection() called"],
+                       encoding="latin-1")
+            raise ClickTimedOut("the client stopped responding while the click was being sent")
+
+        self.client.on_click = after_press
+        running.run()
+        self.assertTrue(running.steps[0]["ok"])
+        self.assertIn("follow-up check confirmed it", running.steps[0]["result"])
+        self.assertEqual(len(self.client.presses), 1)
+
+    def test_a_timed_out_press_without_a_satisfied_follow_up_check_fails_without_retrying(self):
+        running = self.build([{"action": "click", "name": "press the button", "target": "press", "attempts": 5,
+                               "dwell": 0.0, "dwell_step": 0.0,
+                               "until": {"action": "wait_client_log", "pattern": "nothing", "timeout": 0.02}}])
+
+        def after_press(_taken):
+            raise ClickTimedOut("the client stopped responding")
+
+        self.client.on_click = after_press
+        with self.assertRaisesRegex(StepFailed, "follow-up check did not confirm it"):
+            running.run()
+        self.assertEqual(len(self.client.presses), 1)
 
     def test_a_press_is_refused_when_its_screen_is_gone(self):
         running = self.build([{"action": "click", "name": "press the button", "target": "press",

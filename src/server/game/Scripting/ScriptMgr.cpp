@@ -196,6 +196,16 @@ void ScriptMgr::OnHealthChanged(Player& player, int32 oldValue, int32 newValue)
     ForEachPlayer("OnHealthChanged", [&player, oldValue, newValue](PlayerScript* script) { script->OnHealthChanged(player, oldValue, newValue); });
 }
 
+void ScriptMgr::OnGiveXP(Player& player, int32 amount, ExperienceSource source)
+{
+    ForEachPlayer("OnGiveXP", [&player, amount, source](PlayerScript* script) { script->OnGiveXP(player, amount, source); });
+}
+
+void ScriptMgr::OnLevelChanged(Player& player, int32 oldLevel, int32 newLevel)
+{
+    ForEachPlayer("OnLevelChanged", [&player, oldLevel, newLevel](PlayerScript* script) { script->OnLevelChanged(player, oldLevel, newLevel); });
+}
+
 template<typename Hook>
 bool ScriptMgr::AllServer(std::string_view what, Hook hook)
 {

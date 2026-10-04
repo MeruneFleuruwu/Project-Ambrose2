@@ -470,9 +470,15 @@ void GameSession::EnterWorld(LoginKeyClaim const& claim, CharacterSummary const&
         previous.reset();
     }
 
+    std::shared_ptr<PlayerLevelSet const> levelSnapshot = resumedPlayer ? nullptr : sPlayerLevelMgr.GetLevels();
+    if (!resumedStats && !levelSnapshot)
+    {
+        RefuseEntry(claim, "the player level table is unavailable");
+        return;
+    }
     std::string problem;
     std::optional<PlayerStats> stats = resumedStats ? std::move(resumedStats) :
-        PlayerStats::Create(entering, stored, *sPlayerLevelMgr.GetLevels(), *sPlayerLevelMgr.GetStats(), problem);
+        PlayerStats::Create(entering, stored, *levelSnapshot, *sPlayerLevelMgr.GetStats(), problem);
     if (!stats)
     {
         RefuseEntry(claim, problem);
@@ -599,7 +605,7 @@ void GameSession::EnterWorld(LoginKeyClaim const& claim, CharacterSummary const&
     if (resumedPlayer)
         _player = std::move(resumedPlayer);
     else
-        _player.emplace(std::move(*stats));
+        _player.emplace(std::move(*stats), std::move(levelSnapshot));
     if (!resumed)
         _statsRevision = stored ? stored->Revision : 0;
     _spellbook = std::move(spellbook);
@@ -841,6 +847,146 @@ bool GameSession::SetShadowPipRating(float value)
     return true;
 }
 
+double GameSession::GetExperienceRate(ExperienceSource source) const
+{
+    switch (source)
+    {
+        case ExperienceSource::Quest: return sSettings.Get<float>("Rate.XP.Quest");
+        case ExperienceSource::Kill: return sSettings.Get<float>("Rate.XP.Kill");
+        case ExperienceSource::Command: return sSettings.Get<float>("Rate.XP.Command");
+        default:
+            LOG_ERROR("server.gamesession", "Session {} requested XP with an unknown source {}", GetSessionId(), static_cast<uint8>(source));
+            return 0.0;
+    }
+}
+
+PlayerLevelChange GameSession::GiveXP(int64 amount, ExperienceSource source)
+{
+    if (!_player)
+    {
+        PlayerLevelChange change;
+        change.Problem = "the wizard is not in the world";
+        return change;
+    }
+
+    PlayerLevelChange change = _player->GiveXP(amount, source, GetExperienceRate(source));
+    if (!change.Problem.empty())
+    {
+        LOG_ERROR("server.gamesession", "Session {} could not award XP to wizard {}: {}", GetSessionId(), _worldGuid, change.Problem);
+        return change;
+    }
+    if (change.AwardedXP > 0)
+        sScriptMgr.OnGiveXP(*_player, change.AwardedXP, source);
+    ApplyLevelChange(change);
+    if (change.AwardedXP > 0)
+        LOG_INFO("server.gamesession", "Session {} awarded {} XP to wizard {}, now level {} with {} XP and {} overflow XP", GetSessionId(), change.AwardedXP, _worldGuid,
+            change.Level, change.Experience, change.OverflowXP);
+    return change;
+}
+
+PlayerLevelChange GameSession::SetLevelLocked(bool locked)
+{
+    if (!_player)
+    {
+        PlayerLevelChange change;
+        change.Problem = "the wizard is not in the world";
+        return change;
+    }
+    PlayerLevelChange change = _player->SetLevelLocked(locked);
+    if (!change.Problem.empty())
+    {
+        LOG_ERROR("server.gamesession", "Session {} could not {} level locking for wizard {}: {}", GetSessionId(), locked ? "enable" : "disable", _worldGuid, change.Problem);
+        return change;
+    }
+    ApplyLevelChange(change);
+    return change;
+}
+
+PlayerLevelChange GameSession::SetLevel(int32 level)
+{
+    if (!_player)
+    {
+        PlayerLevelChange change;
+        change.Problem = "the wizard is not in the world";
+        return change;
+    }
+    PlayerLevelChange change = _player->SetLevel(level);
+    if (!change.Problem.empty())
+    {
+        LOG_ERROR("server.gamesession", "Session {} could not set wizard {} to level {}: {}", GetSessionId(), _worldGuid, level, change.Problem);
+        return change;
+    }
+    ApplyLevelChange(change);
+    return change;
+}
+
+void GameSession::ApplyLevelChange(PlayerLevelChange const& change)
+{
+    if (!_player || !change.HasChanges())
+        return;
+
+    PlayerStats const& stats = _player->GetStats();
+    if (change.AwardedXP > 0 && (change.Experience != change.PreviousExperience || !change.Updates.empty()))
+    {
+        GameMessages::UpdateXP message;
+        message.GlobalId = _worldGuid;
+        message.XP = change.AwardedXP;
+        message.OldXP = change.PreviousExperience;
+        SendDmlMessage(message);
+    }
+    if (change.OverflowXP != change.PreviousOverflowXP)
+    {
+        GameMessages::UpdateOverflowXP message;
+        message.OverflowXP = static_cast<uint32>(change.OverflowXP);
+        SendDmlMessage(message);
+    }
+    if (change.TrainingPoints != change.PreviousTrainingPoints)
+    {
+        GameMessages::UpdateTraining message;
+        message.TrainingPoints = change.TrainingPoints;
+        SendDmlMessage(message);
+    }
+
+    int32 previousLevel = change.PreviousLevel;
+    for (PlayerLevelUpdate const& update : change.Updates)
+    {
+        if (_world)
+            _world->BroadcastLevelUp(*this, update.Level, update.Experience, update.TrainingPoints);
+        else
+        {
+            GameMessages::LevelUp message;
+            message.GlobalId = _worldGuid;
+            message.Data = "0000000000";
+            message.NewLevel = update.Level;
+            message.XP = update.Experience;
+            message.TrainingPoints = update.TrainingPoints;
+            SendDmlMessage(message);
+        }
+        sScriptMgr.OnLevelChanged(*_player, previousLevel, update.Level);
+        previousLevel = update.Level;
+    }
+
+    if (change.PreviousLevel != change.Level)
+    {
+        SendHealthUpdate(1);
+        SendManaUpdate(1);
+        SendGoldUpdate();
+        GameMessages::UpdatePowerPip powerPip;
+        powerPip.PowerPip = stats.GetPowerPip();
+        SendDmlMessage(powerPip);
+        GameMessages::UpdateShadowPipRating shadowPip;
+        shadowPip.ShadowPipRating = stats.GetShadowPipRating();
+        SendDmlMessage(shadowPip);
+        GameMessages::PetEnergyMax petEnergy;
+        petEnergy.MaxEnergy = stats.GetBase().PetEnergy;
+        SendDmlMessage(petEnergy);
+    }
+
+    if (change.PreviousLevel != change.Level || change.PreviousExperience != change.Experience)
+        SaveProgress();
+    SaveStats();
+}
+
 void GameSession::SendElixirStateChange(uint64 parentId, uint8 effectEnabled)
 {
     if (!_player)
@@ -916,6 +1062,13 @@ void GameSession::HandleUsePotion(GameMessages::UsePotion&)
         sScriptMgr.OnHealthChanged(*_player, oldHealth, newHealth);
 }
 
+void GameSession::HandleLockLevel(GameMessages::LockLevel& message)
+{
+    PlayerLevelChange const change = SetLevelLocked(message.Unlock == 0);
+    if (change.Problem.empty())
+        LOG_INFO("server.gamesession", "Session {} {} level locking for wizard {}", GetSessionId(), message.Unlock == 0 ? "locked" : "unlocked", _worldGuid);
+}
+
 std::string GameSession::GetCharacterName() const
 {
     std::lock_guard const lock(_nameMutex);
@@ -944,6 +1097,22 @@ void GameSession::SaveStats()
         CharacterDatabase.Execute(std::move(statement));
         _player->ClearDirtyStats();
     }
+}
+
+void GameSession::SaveProgress()
+{
+    if (!_player)
+        return;
+    if (!CharacterDatabase.IsOpen())
+    {
+        LOG_ERROR("server.gamesession", "Session {} could not save wizard {}'s level and XP because the characters database is not open", GetSessionId(), _worldGuid);
+        return;
+    }
+    PlayerStats const& stats = _player->GetStats();
+    if (CharacterRepository::Statement statement = CharacterRepository::PrepareSaveProgress(_worldGuid, stats.GetLevel(), stats.GetExperience(), ++_characterRevision))
+        CharacterDatabase.Execute(std::move(statement));
+    else
+        LOG_ERROR("server.gamesession", "Session {} could not prepare a level and XP save for wizard {}", GetSessionId(), _worldGuid);
 }
 
 SpellbookChange GameSession::LearnSpell(uint32 spellId)

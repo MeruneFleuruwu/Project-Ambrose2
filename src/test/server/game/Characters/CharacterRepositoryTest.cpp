@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * Tests the character repository: a closed characters database is an error, and with AMBROSE_TEST_DB set it installs the characters schema and checks wizards round-tripping every field and appearance value bit for bit, random ones and ones at every width's smallest and largest value; soft deletion hiding an offline wizard from its account's list and count while it stays readable by guid and can be restored, and refusing an online one; a wizard without appearance counted as the list finds it; rows half deleted refused by the schema; duplicates and data that cannot be stored; the online flag; guids resuming above the highest guid ever used, even after its row is gone; and a wizard's stats row, missing until the first save, saved and replaced whole with full health and mana kept as full, a write older than the row changing nothing, refused with a negative amount, and read as no wizard for a guid that has none; a wizard's position written under the revision of its row, a late older write changing nothing and a position that is not a number refused; and a wizard's spellbook rows, none until it learns a spell, read in the order learned, an unlearned spell kept as a row that says so, a late older write changing nothing, spell 0 refused, and read as no wizard for a guid that has none.
+ * Tests the character repository: a closed characters database is an error, and with AMBROSE_TEST_DB set it installs the characters schema and checks wizards round-tripping every field and appearance value bit for bit, random ones and ones at every width's smallest and largest value; soft deletion hiding an offline wizard from its account's list and count while it stays readable by guid and can be restored, and refusing an online one; a wizard without appearance counted as the list finds it; rows half deleted refused by the schema; duplicates and data that cannot be stored; the online flag; guids resuming above the highest guid ever used, even after its row is gone; and a wizard's stats row, missing until the first save, saved and replaced whole with full health and mana kept as full, a write older than the row changing nothing, refused with a negative amount, and read as no wizard for a guid that has none; a wizard's level and XP saved under the revision of its row, and late writes changing nothing; a wizard's position written under the revision of its row, a late older write changing nothing and a position that is not a number refused; and a wizard's spellbook rows, none until it learns a spell, read in the order learned, an unlearned spell kept as a row that says so, a late older write changing nothing, spell 0 refused, and read as no wizard for a guid that has none.
  */
 
 #include "CharacterRepository.h"
@@ -420,6 +420,29 @@ TEST_F(CharacterRepositoryDatabaseTest, APositionWriteOlderThanTheRowChangesNoth
     EXPECT_EQ(CharacterRepository::SavePosition(401, std::numeric_limits<float>::quiet_NaN(), 0.0f, 0.0f, 0.0f, 9), CharacterOpResult::InvalidData);
     EXPECT_EQ(CharacterRepository::SavePosition(0, 0.0f, 0.0f, 0.0f, 0.0f, 9), CharacterOpResult::InvalidData);
     EXPECT_EQ(CharacterRepository::Load(401).Character->StateRevision, 3u);
+}
+
+TEST_F(CharacterRepositoryDatabaseTest, ProgressWritesPersistLevelAndExperienceUnderTheCharacterRevision)
+{
+    std::mt19937 random(20260928);
+    ASSERT_EQ(CharacterRepository::Create(MakeCharacter(random, 451, 7, 1800000451)), CharacterOpResult::Ok);
+
+    ASSERT_EQ(CharacterRepository::SaveProgress(451, 35, 12345, 2), CharacterOpResult::Ok);
+    CharacterSummary const leveled = *CharacterRepository::Load(451).Character;
+    EXPECT_EQ(leveled.Level, 35);
+    EXPECT_EQ(leveled.Experience, 12345);
+    EXPECT_EQ(leveled.StateRevision, 2u);
+
+    ASSERT_EQ(CharacterRepository::SaveProgress(451, 10, 55, 1), CharacterOpResult::Ok);
+    ASSERT_EQ(CharacterRepository::SaveProgress(451, 12, 75, 2), CharacterOpResult::Ok);
+    CharacterSummary const unchanged = *CharacterRepository::Load(451).Character;
+    EXPECT_EQ(unchanged.Level, 35);
+    EXPECT_EQ(unchanged.Experience, 12345);
+    EXPECT_EQ(unchanged.StateRevision, 2u);
+
+    EXPECT_EQ(CharacterRepository::SaveProgress(451, 0, 0, 3), CharacterOpResult::InvalidData);
+    EXPECT_EQ(CharacterRepository::SaveProgress(451, 35, -1, 3), CharacterOpResult::InvalidData);
+    EXPECT_EQ(CharacterRepository::SaveProgress(0, 35, 0, 3), CharacterOpResult::InvalidData);
 }
 
 TEST_F(CharacterRepositoryDatabaseTest, AWizardsSpellbookRowsReadInTheOrderLearnedAndALateOlderWriteChangesNothing)

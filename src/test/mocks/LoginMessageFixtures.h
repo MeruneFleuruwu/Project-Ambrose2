@@ -76,6 +76,13 @@ namespace LoginMessageFixtures
 </FixtureGameMessages>
 )";
 
+    inline constexpr std::string_view PetXml = R"(<?xml version="1.0" ?>
+<FixturePetMessages>
+<_ProtocolInfo><RECORD><ServiceID TYPE="UBYT">9</ServiceID><ProtocolType TYPE="STR">PET</ProtocolType></RECORD></_ProtocolInfo>
+<MSG_PETENERGYMAX><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">26</_MsgOrder><MaxEnergy TYPE="INT"></MaxEnergy></RECORD></MSG_PETENERGYMAX>
+</FixturePetMessages>
+)";
+
     inline constexpr std::string_view WizardXml = R"(<?xml version="1.0" ?>
 <FixtureWizardMessages>
 <_ProtocolInfo><RECORD><ServiceID TYPE="UBYT">12</ServiceID><ProtocolType TYPE="STR">WIZARD</ProtocolType></RECORD></_ProtocolInfo>
@@ -85,6 +92,7 @@ namespace LoginMessageFixtures
 <MSG_ELIXIRSTATECHANGE><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">55</_MsgOrder><parentID TYPE="GID"></parentID><EffectEnabled TYPE="BYT"></EffectEnabled></RECORD></MSG_ELIXIRSTATECHANGE>
 <MSG_GETSUBSCRIBERONLYITEMS><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">64</_MsgOrder></RECORD></MSG_GETSUBSCRIBERONLYITEMS>
 <MSG_GETTIMEDACCESSPASSES><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">65</_MsgOrder></RECORD></MSG_GETTIMEDACCESSPASSES>
+<MSG_LEVELUP><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">86</_MsgOrder><GlobalID TYPE="GID"></GlobalID><Data TYPE="STR"></Data><NewLevel TYPE="INT"></NewLevel><XP TYPE="INT"></XP><TrainingPoints TYPE="INT"></TrainingPoints></RECORD></MSG_LEVELUP>
 <MSG_LOGCLIENTRESOLUTION><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">87</_MsgOrder><ScreenWidth TYPE="UINT"></ScreenWidth><ScreenHeight TYPE="UINT"></ScreenHeight><FullScreen TYPE="UBYT"></FullScreen><ClassicMode TYPE="UBYT"></ClassicMode></RECORD></MSG_LOGCLIENTRESOLUTION>
 <MSG_LOGPATCHCLIENTPATCHTIME><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">89</_MsgOrder><PatchClientPatchTime TYPE="UINT"></PatchClientPatchTime></RECORD></MSG_LOGPATCHCLIENTPATCHTIME>
 <MSG_PLAYERWIZBANG><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">128</_MsgOrder><StateName TYPE="STR"></StateName></RECORD></MSG_PLAYERWIZBANG>
@@ -98,6 +106,8 @@ namespace LoginMessageFixtures
 <MSG_UPDATEPOTIONS><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">234</_MsgOrder><PotionMax TYPE="FLT"></PotionMax><PotionCharge TYPE="FLT"></PotionCharge></RECORD></MSG_UPDATEPOTIONS>
 <MSG_UPDATEPOWERPIP><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">235</_MsgOrder><PowerPip TYPE="FLT"></PowerPip></RECORD></MSG_UPDATEPOWERPIP>
 <MSG_UPDATESHADOWPIPRATING><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">238</_MsgOrder><ShadowPipRating TYPE="FLT"></ShadowPipRating></RECORD></MSG_UPDATESHADOWPIPRATING>
+<MSG_UPDATETRAINING><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">239</_MsgOrder><TrainingPoints TYPE="INT"></TrainingPoints></RECORD></MSG_UPDATETRAINING>
+<MSG_UPDATEXP><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">241</_MsgOrder><GlobalID TYPE="GID"></GlobalID><XP TYPE="INT"></XP><OldXP TYPE="INT"></OldXP></RECORD></MSG_UPDATEXP>
 <MSG_USEPOTION><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">244</_MsgOrder></RECORD></MSG_USEPOTION>
 </FixtureWizardMessages>
 )";
@@ -114,7 +124,9 @@ namespace LoginMessageFixtures
     inline constexpr std::string_view Wizard3Xml = R"(<?xml version="1.0" ?>
 <FixtureWizard3Messages>
 <_ProtocolInfo><RECORD><ServiceID TYPE="UBYT">56</ServiceID><ProtocolType TYPE="STR">WIZARD3</ProtocolType></RECORD></_ProtocolInfo>
+<MSG_LOCKLEVEL><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">57</_MsgOrder><Unlock TYPE="UBYT"></Unlock></RECORD></MSG_LOCKLEVEL>
 <MSG_UPDATEARCHMASTERY><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">193</_MsgOrder><Stat TYPE="FLT"></Stat></RECORD></MSG_UPDATEARCHMASTERY>
+<MSG_UPDATEOVERFLOWXP><RECORD><_MsgOrder TYPE="UBYT" NOXFER="TRUE">203</_MsgOrder><OverflowXP TYPE="UINT"></OverflowXP></RECORD></MSG_UPDATEOVERFLOWXP>
 </FixtureWizard3Messages>
 )";
 
@@ -163,7 +175,7 @@ namespace LoginMessageFixtures
     inline bool AddTo(MessageDefinitionSet& definitions, bool withGame = false)
     {
         return definitions.Add(LoginXml, "FixtureLoginMessages.xml")
-            && (!withGame || (definitions.Add(GameXml, "FixtureGameMessages.xml") && definitions.Add(WizardXml, "FixtureWizardMessages.xml") && definitions.Add(Wizard2Xml, "FixtureWizard2Messages.xml")
+            && (!withGame || (definitions.Add(GameXml, "FixtureGameMessages.xml") && definitions.Add(PetXml, "FixturePetMessages.xml") && definitions.Add(WizardXml, "FixtureWizardMessages.xml") && definitions.Add(Wizard2Xml, "FixtureWizard2Messages.xml")
                 && definitions.Add(Wizard3Xml, "FixtureWizard3Messages.xml") && definitions.Add(WizCombatXml, "FixtureWizCombatMessages.xml")))
             && BaseMessageFixtures::AddTo(definitions);
     }

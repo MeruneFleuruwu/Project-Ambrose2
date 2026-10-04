@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * A connected game client and the world-thread-owned wizard behind it: attach spends a one-use handoff key, loads and checks the character, then gives the client its object; movement, spellbook and live player stats stay with the world thread, stat changes update the HUD and character persistence, and the final position is saved on a clean exit, disconnect expiry or server stop. Intentional exits mark the character offline immediately, link-dead sockets retain the wizard and online claim for a live-configured grace period, and a replacement attach can take over the existing world placement without creating a duplicate. What its wizard says and the emotes it plays are kept until the world's next tick shows them to the wizards around it, which hear them under the name the client's name codec packs for it and the chat level its permissions give it, and a command line its account may run is run at the account's security level, with the reply sent back to its own chat window, and the wizbang its wizard's client names is kept for the wizards around it and shown to each that comes to see it.
+ * A connected game client and the world-thread-owned wizard behind it: attach spends a one-use handoff key, loads and checks the character, then gives the client its object; movement, spellbook, live player stats and XP progression stay with the world thread, stat changes update the HUD and character persistence, and the final position is saved on a clean exit, disconnect expiry or server stop. Intentional exits mark the character offline immediately, link-dead sockets retain the wizard and online claim for a live-configured grace period, and a replacement attach can take over the existing world placement without creating a duplicate. What its wizard says and the emotes it plays are kept until the world's next tick shows them to the wizards around it, which hear them under the name the client's name codec packs for it and the chat level its permissions give it, and a command line its account may run is run at the account's security level, with the reply sent back to its own chat window, and the wizbang its wizard's client names is kept for the wizards around it and shown to each that comes to see it.
  */
 
 #ifndef AMBROSE_GAMESESSION_H
@@ -120,6 +120,9 @@ public:
     bool SetPotionCapacity(uint32 capacity);
     bool SetPowerPip(float value);
     bool SetShadowPipRating(float value);
+    PlayerLevelChange GiveXP(int64 amount, ExperienceSource source);
+    PlayerLevelChange SetLevelLocked(bool locked);
+    PlayerLevelChange SetLevel(int32 level);
     void SendElixirStateChange(uint64 parentId, uint8 effectEnabled);
     PlayerMovement const& GetMovement() const noexcept { return _movement; }
     PlayerSpellbook const* GetSpellbook() const noexcept { return _spellbook ? &*_spellbook : nullptr; }
@@ -134,6 +137,7 @@ public:
     void HandleLogPatchClientPatchTime(GameMessages::LogPatchClientPatchTime& message);
     void HandleQuestFinderOption(GameMessages::QuestFinderOption& message);
     void HandleUsePotion(GameMessages::UsePotion& message);
+    void HandleLockLevel(GameMessages::LockLevel& message);
     void SendBadges();
     void HandlePlayerWizBang(GameMessages::PlayerWizBang& message);
 
@@ -169,6 +173,9 @@ private:
     void LoadSpells(LoginKeyClaim const& claim, CharacterSummary character, std::optional<CharacterStats> stored);
     void EnterWorld(LoginKeyClaim const& claim, CharacterSummary const& character, std::optional<CharacterStats> const& stored, std::vector<CharacterSpell> const& spells);
     void SaveStats();
+    void SaveProgress();
+    void ApplyLevelChange(PlayerLevelChange const& change);
+    double GetExperienceRate(ExperienceSource source) const;
     void SaveSpell(CharacterSpell const& spell);
     void SavePosition(PlayerPosition const& position);
     void SendHealthUpdate(uint8 displayDiff);

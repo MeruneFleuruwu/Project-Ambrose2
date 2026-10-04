@@ -160,6 +160,7 @@ namespace
 
             Float("Rate.XP.Quest", "1", "0", "100", "times", "Rates", Game, Live, "Multiplies the experience a quest gives."),
             Float("Rate.XP.Kill", "1", "0", "100", "times", "Rates", Game, Live, "Multiplies the experience a defeated creature gives."),
+            Float("Rate.XP.Command", "1", "0", "100", "times", "Rates", Game, Live, "Multiplies experience granted by a game-master command."),
             Float("Rate.Gold.Quest", "1", "0", "100", "times", "Rates", Game, Live, "Multiplies the gold a quest gives."),
             Float("Rate.Gold.Kill", "1", "0", "100", "times", "Rates", Game, Live, "Multiplies the gold a defeated creature drops."),
             Float("Rate.Drop.Item", "1", "0", "100", "times", "Rates", Game, Live, "Multiplies the chance of each item a defeated creature may drop."),

@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * The hooks every content script hangs off: a script names itself and registers as it is constructed, the manager keeps each kind in its own list and calls them in registration order, and a hook that throws is reported with the script's name and does not stop the others; WorldScript carries startup, shutdown, configuration reload and update ticks, PlayerScript receives live gold and health changes, CommandScript supplies game-master commands, and ServerScript sees network starts, sockets and DML messages that it may hold back. The caller hands the manager the loader CMake wrote, so hooks do not depend on the content that uses them.
+ * The hooks every content script hangs off: a script names itself and registers as it is constructed, the manager keeps each kind in its own list and calls them in registration order, and a hook that throws is reported with the script's name and does not stop the others; WorldScript carries startup, shutdown, configuration reload and update ticks, PlayerScript receives live gold, health, XP awards and level changes, CommandScript supplies game-master commands, and ServerScript sees network starts, sockets and DML messages that it may hold back. The caller hands the manager the loader CMake wrote, so hooks do not depend on the content that uses them.
  */
 
 #ifndef AMBROSE_SCRIPTMGR_H
@@ -16,6 +16,7 @@
 #include <vector>
 
 class Player;
+enum class ExperienceSource : uint8;
 
 class ScriptObject
 {
@@ -51,6 +52,8 @@ class PlayerScript : public ScriptObject
 public:
     virtual void OnGoldChanged(Player& player, int32 oldValue, int32 newValue) { (void)player; (void)oldValue; (void)newValue; }
     virtual void OnHealthChanged(Player& player, int32 oldValue, int32 newValue) { (void)player; (void)oldValue; (void)newValue; }
+    virtual void OnGiveXP(Player& player, int32 amount, ExperienceSource source) { (void)player; (void)amount; (void)source; }
+    virtual void OnLevelChanged(Player& player, int32 oldLevel, int32 newLevel) { (void)player; (void)oldLevel; (void)newLevel; }
 
 protected:
     explicit PlayerScript(std::string name);
@@ -104,6 +107,8 @@ public:
     void OnWorldUpdate(std::chrono::milliseconds diff);
     void OnGoldChanged(Player& player, int32 oldValue, int32 newValue);
     void OnHealthChanged(Player& player, int32 oldValue, int32 newValue);
+    void OnGiveXP(Player& player, int32 amount, ExperienceSource source);
+    void OnLevelChanged(Player& player, int32 oldLevel, int32 newLevel);
 
     std::vector<ChatCommand> GetCommands() const;
 
