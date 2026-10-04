@@ -930,7 +930,7 @@ void GameSession::ApplyLevelChange(PlayerLevelChange const& change)
     {
         GameMessages::UpdateXP message;
         message.GlobalId = _worldGuid;
-        message.XP = change.AwardedXP;
+        message.XP = change.Experience;
         message.OldXP = change.PreviousExperience;
         SendDmlMessage(message);
     }

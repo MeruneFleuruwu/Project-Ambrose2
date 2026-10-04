@@ -91,7 +91,7 @@ Health, mana, gold, power-pip and potion changes on the server show up immediate
 - [x] 2.5 levels from level 1 ends at 3 with remainder and training points [PlayerLevelTest.AnAwardOfTwoAndAHalfLevelsCarriesTheRemainderAndTrainingPoints passed]
 - [x] Max level goes to overflow_xp; locked level does not change [PlayerLevelTest.XPAtTheMaximumLevelGoesToOverflow and PlayerLevelTest.LockedXPIsBufferedAndConsumedWhenTheLevelIsUnlocked passed]
 - [x] `.settings set Rate.XP.Quest 2` doubles the next quest XP grant without a restart [GameSessionLifecycleTest.QuestExperienceRateUsesTheLatestLiveSettingWithoutRestart and PlayerLevelTest.AQuestRateOfTwoDoublesAnUnbonusedAward passed]
-- [x] Real client: level-up effect seen by a second client [client run 20261004-153250 passed; `15-companion-sees-level-up.png` shows the nearby client receiving the level-2 notification]
+- [x] Real client: level-up effect seen by a second client [client run 20261004-191825 passed; `17-companion-sees-level-up.png` shows the nearby client receiving the level-2 notification]
 
 ### Detailed spec from WIZ-7: Experience and level-up
 
@@ -124,12 +124,11 @@ Gaining XP fills the XP bar, crossing a threshold levels the wizard up with a fu
 - [x] Unit test: at max level the XP goes to overflow_xp and no LEVELUP is sent [PlayerLevelTest.XPAtTheMaximumLevelGoesToOverflow passed]
 - [x] Unit test: a locked level accrues no level changes [PlayerLevelTest.LockedXPIsBufferedAndConsumedWhenTheLevelIsUnlocked passed]
 - [x] Unit test: after `.settings set Rate.XP.Quest 2`, GiveXP(100, Quest) grants 200 without a restart [GameSessionLifecycleTest.QuestExperienceRateUsesTheLatestLiveSettingWithoutRestart and PlayerLevelTest.AQuestRateOfTwoDoublesAnUnbonusedAward passed]
-- [x] Real client: '.character xp <amount>' fills the XP bar. Crossing the threshold plays the level-up effect and sound, the level number on the character sheet goes up, and health and mana refill to the new maximums. A second client nearby sees the level-up effect on the first. [client run 20261004-153250 passed; `15-companion-sees-level-up.png`, `16-main-level-up-vitals.png` and `17-main-level-up-character-stats.png` show the companion's level-2 notification and the main wizard at level 2 with 437/437 health and 17/17 mana]
+- [x] Real client: '.character xp <amount>' fills the XP bar. Crossing the threshold plays the level-up effect and sound, the level number on the character sheet goes up, and health and mana refill to the new maximums. A second client nearby sees the level-up effect on the first. [client run 20261004-191825 passed; `17-companion-sees-level-up.png`, `18-main-level-up-vitals.png` and `19-main-level-up-character-stats.png` show the companion's level-2 notification and the main wizard at level 2 with 40/115 XP, 437/437 health and 17/17 mana]
 
 **Risks**
 
 - The LEVELUP Data field format is unknown. The reference sends the literal '0000000000'.
-- The real client displayed 155/115 XP after a 200-XP award while the server reported 85 XP at level 2; verify the exact sheet calculation before asserting the displayed XP total. The client message carries XP and OldXP, and the reference sends the delta plus OldXP.
 
 ## 8.03 School and secondary school (WIZ-8)
 

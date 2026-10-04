@@ -330,6 +330,11 @@
     },
     {
       "action": "key",
+      "name": "dismiss the command chat before opening the character stats",
+      "vk": "0x1B"
+    },
+    {
+      "action": "key",
       "name": "open the main wizard's character stats",
       "vk": "0x43"
     },
@@ -337,7 +342,7 @@
       "action": "shot",
       "name": "the main wizard's character sheet shows the new level",
       "file": "main-level-up-character-stats",
-      "settle": 1
+      "settle": 3
     },
     {
       "action": "key",
@@ -584,6 +589,8 @@
     "MSG_REQASKSERVER",
     "MSG_REQUESTCROWNSREWARDSEVENTS",
     "MSG_REQUESTMAINLINEAUDIT",
+    "MSG_REQUESTPRIVACYOPTIONS",
+    "MSG_REQUESTSHOWPVPOPTION",
     "MSG_REQUESTTSDONEPREPFORMP",
     "MSG_REQUESTTSMARKEDASUNTRAINED",
     "MSG_REQUESTTUTORIALTIPLOG",
