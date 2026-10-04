@@ -54,18 +54,32 @@ namespace
 
 TEST_F(PlayerLevelTest, AnAwardOfTwoAndAHalfLevelsCarriesTheRemainderAndTrainingPoints)
 {
-    std::optional<Player> created = MakePlayer();
-    ASSERT_TRUE(created);
-    Player& player = *created;
+    PlayerLevelData levelData = PlayerStatsFixtures::FireLevels(5);
+    for (PlayerLevelInfo& level : levelData.Levels)
+        if (level.Level == 2)
+            level.TrainingPoints = 1;
+
+    std::vector<std::string> errors;
+    std::shared_ptr<PlayerLevelSet const> levels = PlayerLevelSet::Build(std::move(levelData), errors);
+    ASSERT_TRUE(levels) << (errors.empty() ? std::string() : errors.front());
+
+    std::string problem;
+    std::optional<PlayerStats> stats = PlayerStats::Create(_character, std::nullopt, *levels, *_effects, problem);
+    ASSERT_TRUE(stats) << problem;
+    Player player(std::move(*stats), levels);
 
     PlayerLevelChange const change = player.GiveXP(498, ExperienceSource::Quest, 1.0);
 
     EXPECT_TRUE(change.Problem.empty());
     EXPECT_EQ(change.AwardedXP, 498);
-    EXPECT_EQ(change.Updates.size(), 2u);
+    ASSERT_EQ(change.Updates.size(), 2u);
+    EXPECT_EQ(change.Updates[0].Level, 2);
+    EXPECT_EQ(change.Updates[0].TrainingPoints, 2);
+    EXPECT_EQ(change.Updates[1].Level, 3);
+    EXPECT_EQ(change.Updates[1].TrainingPoints, 3);
     EXPECT_EQ(player.GetStats().GetLevel(), 3);
     EXPECT_EQ(player.GetStats().GetExperience(), 158);
-    EXPECT_EQ(player.GetStats().GetTrainingPoints(), 2);
+    EXPECT_EQ(player.GetStats().GetTrainingPoints(), 3);
     EXPECT_EQ(player.GetStats().GetMaxHitpoints(), 445);
     EXPECT_EQ(player.GetStats().GetHitpoints(), 445);
     EXPECT_TRUE(player.HasDirtyStats());
