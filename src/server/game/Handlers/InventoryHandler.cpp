@@ -10,6 +10,7 @@
 #include "Log.h"
 #include "ObjectGuid.h"
 #include "ObjectSchemaMgr.h"
+#include "ObjectTemplateMgr.h"
 #include "Settings.h"
 #include "TypeRegistry.h"
 
@@ -205,8 +206,11 @@ void GameSession::SaveItemLock(CharacterItem const& item)
 void GameSession::SendItemAdded(ItemTemplateRecord const& itemTemplate, CharacterItem const& item)
 {
     CoreObjectTypeTablePtr const types = sObjectSchemaMgr.GetCoreObjectTypes();
+    std::shared_ptr<ObjectTemplate const> const objectTemplate = sObjectTemplateMgr.Lookup(itemTemplate.TemplateId).Template;
+    std::shared_ptr<BehaviorClientClasses const> const behaviors = sObjectSchemaMgr.GetBehaviorClientClasses();
     std::string problem;
-    PropertyObjectPtr const object = types ? ItemObjectBuilder::Build(sTypeRegistry.GetCatalog(), *types, itemTemplate, item, problem) : nullptr;
+    PropertyObjectPtr const object =
+        types ? ItemObjectBuilder::Build(sTypeRegistry.GetCatalog(), *types, itemTemplate, item, problem, objectTemplate.get(), behaviors.get()) : nullptr;
     if (!types)
         problem = "the core object types are not loaded";
     std::optional<std::string> const encoded = object ? ItemObjectBuilder::Encode(GameMessages::InventoryBehaviorAddItem::Tag, *object, *types, problem) : std::nullopt;

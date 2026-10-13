@@ -8,4 +8,5 @@ target_link_libraries(inventory
         entities
         items
         conditions
-        globals)
+        globals
+        pets)

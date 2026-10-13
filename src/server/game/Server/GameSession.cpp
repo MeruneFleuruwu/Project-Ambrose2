@@ -779,7 +779,8 @@ void GameSession::EnterWorld(LoginKeyClaim const& claim, CharacterSummary const&
         if (!itemTemplates)
             LOG_WARN("server.gamesession", "Session {} shows wizard {} an empty backpack, holding {} item(s), since no item templates are loaded", GetSessionId(), character.Guid,
                 backpack.Size());
-        else if (!ItemObjectBuilder::FillBackpack(*player, *types, *itemTemplates, backpack.GetItems(), unheld, backpackProblem))
+        else if (!ItemObjectBuilder::FillBackpack(*player, *types, *itemTemplates, backpack.GetItems(), unheld, backpackProblem, &sObjectTemplateMgr,
+                     sObjectSchemaMgr.GetBehaviorClientClasses().get()))
             LOG_WARN("server.gamesession", "Session {} shows wizard {} an empty backpack, holding {} item(s), since {}", GetSessionId(), character.Guid, backpack.Size(), backpackProblem);
         if (!unheld.empty())
             LOG_WARN("server.gamesession", "Session {} left {} item(s) wizard {} holds out of its backpack, since the items this server holds do not name their templates: {}",
@@ -790,7 +791,8 @@ void GameSession::EnterWorld(LoginKeyClaim const& claim, CharacterSummary const&
     {
         std::vector<uint64> unheld;
         std::string equipmentProblem;
-        if (!ItemObjectBuilder::FillEquipment(*player, *types, *itemTemplates, equipment.GetItems(), unheld, equipmentProblem))
+        if (!ItemObjectBuilder::FillEquipment(*player, *types, *itemTemplates, equipment.GetItems(), unheld, equipmentProblem, &sObjectTemplateMgr,
+                 sObjectSchemaMgr.GetBehaviorClientClasses().get()))
             LOG_WARN("server.gamesession", "Session {} shows wizard {} wearing nothing, though it wears {} item(s), since {}", GetSessionId(), character.Guid, equipment.Size(),
                 equipmentProblem);
         if (!unheld.empty())

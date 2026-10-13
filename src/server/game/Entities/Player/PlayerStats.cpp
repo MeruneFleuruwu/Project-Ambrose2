@@ -4,6 +4,8 @@
  */
 
 #include "PlayerStats.h"
+#include "CharacterRepository.h"
+#include "ItemMgr.h"
 #include "PropertyFiller.h"
 
 #include <fmt/format.h>
@@ -202,5 +204,174 @@ bool PlayerStats::WriteSchool(PropertyObject& behavior, std::string& problem) co
         .Set("m_overflowXP", _stored.OverflowXp)
         .Set("m_levelLocked", int32{ _stored.LevelLocked ? 1 : 0 })
         .Set("m_secondarySchool", _stored.SecondarySchoolId);
+    return problem.empty();
+}
+
+std::optional<PlayerStats> PlayerStats::CreateWithEquipment(CharacterSummary const& character, std::optional<CharacterStats> const& stored, PlayerLevelSet const& levels, StatEffectSet const& effects,
+    std::vector<CharacterEquippedItem> const& equipped, std::vector<ItemTemplateRecord const*> const& itemTemplates, uint32 itemSetBonusTemplateId,
+    std::vector<ItemSetBonusTier> const& setBonusTiers, std::string& problem)
+{
+    PlayerLevelInfo const* const row = levels.GetInfo(character.SchoolId, character.Level);
+    if (!row)
+    {
+        if (levels.IsEmpty())
+            problem = "the world database has no level tables, so no wizard has base stats; run the extractor's levels command against your install";
+        else if (character.Level < 0)
+            problem = fmt::format("wizard {} is at level {}", character.Guid, character.Level);
+        else
+            problem = fmt::format("wizard {}'s school {} has no rows in player_level_stats", character.Guid, character.SchoolId);
+        return std::nullopt;
+    }
+    PlayerStats stats;
+    stats._schoolId = character.SchoolId;
+    stats._level = character.Level;
+    stats._experience = character.Experience;
+    stats._base = *row;
+    stats._powerPip = static_cast<float>(row->PipChance);
+    stats._shadowPipRating = row->ShadowPipRating;
+    if (std::optional<double> const limit = effects.Get(ShadowPipMaxSetting); limit && *limit >= 0.0 && *limit <= std::numeric_limits<int32>::max() && *limit == std::floor(*limit))
+        stats._shadowPipMax = static_cast<int32>(*limit);
+    stats._stored = stored.value_or(CharacterStats{});
+    if (!stored)
+    {
+        int64 earned = 0;
+        for (int32 level = 1; level <= character.Level; ++level)
+            if (PlayerLevelInfo const* const reached = levels.GetInfo(character.SchoolId, level); reached && reached->Level == static_cast<uint32>(level))
+                earned += std::max(reached->TrainingPoints, 0);
+        stats._stored.TrainingPoints = static_cast<int32>(std::min<int64>(earned, std::numeric_limits<int32>::max()));
+    }
+
+    // Compute stats with equipment
+    std::shared_ptr<ItemTemplateStore const> const templates = sItemMgr.GetItems();
+    std::vector<ItemSetBonusTier> tiers;
+    if (itemSetBonusTemplateId != 0 && templates)
+    {
+        // The set bonus tiers should be passed in, not looked up here
+        tiers = setBonusTiers;
+    }
+
+    ComputedStats computed = StatCalculator::Compute(*row, equipped, itemTemplates, itemSetBonusTemplateId, tiers, effects,
+        stats._stored.Health.value_or(row->Hitpoints), stats._stored.Mana.value_or(row->Mana), stats._stored.Gold,
+        stats._stored.PotionMax, stats._stored.PotionCharge, stats._stored.ArenaPoints, problem);
+    if (!problem.empty())
+        return std::nullopt;
+
+    // Store computed values
+    stats._hitPointBonus = computed.HitPointBonus;
+    stats._manaBonus = computed.ManaBonus;
+    stats._powerPipBonusPercent = computed.PowerPipBonusPercent;
+    stats._pipConversionRating = computed.PipConversionRating;
+    stats._criticalHitChance = computed.CriticalHitChance;
+    stats._blockChance = computed.BlockChance;
+    stats._pipConversionPercent = computed.PipConversionPercent;
+    stats._damageBonusPercentAll = computed.DamageBonusPercentAll;
+    stats._damageReducePercentAll = computed.DamageReducePercentAll;
+    stats._accuracyBonusPercentAll = computed.AccuracyBonusPercentAll;
+    stats._archmasteryBonus = computed.ArchmasteryBonus;
+    stats._damageBonusPercentSchool = computed.DamageBonusPercentSchool;
+    stats._damageReducePercentSchool = computed.DamageReducePercentSchool;
+    stats._accuracyBonusPercentSchool = computed.AccuracyBonusPercentSchool;
+
+    // Clamp current vitals to new maximums
+    stats._hitpoints = computed.CurrentHitpoints;
+    stats._mana = computed.CurrentMana;
+    stats._stored.Gold = computed.CurrentGold;
+    stats._stored.PotionMax = computed.PotionMax;
+    stats._stored.PotionCharge = computed.PotionCharge;
+    stats._stored.ArenaPoints = computed.CurrentArenaPoints;
+
+    return stats;
+}
+
+void PlayerStats::RecomputeStats(std::vector<CharacterEquippedItem> const& equipped, std::vector<ItemTemplateRecord const*> const& itemTemplates, uint32 itemSetBonusTemplateId,
+    std::vector<ItemSetBonusTier> const& setBonusTiers, StatEffectSet const& statEffects, std::string& problem)
+{
+    ComputedStats computed = StatCalculator::Compute(_base, equipped, itemTemplates, itemSetBonusTemplateId, setBonusTiers, statEffects,
+        _hitpoints, _mana, _stored.Gold, _stored.PotionMax, _stored.PotionCharge, _stored.ArenaPoints, problem);
+    if (!problem.empty())
+        return;
+
+    // Store computed values
+    _hitPointBonus = computed.HitPointBonus;
+    _manaBonus = computed.ManaBonus;
+    _powerPipBonusPercent = computed.PowerPipBonusPercent;
+    _pipConversionRating = computed.PipConversionRating;
+    _criticalHitChance = computed.CriticalHitChance;
+    _blockChance = computed.BlockChance;
+    _pipConversionPercent = computed.PipConversionPercent;
+    _damageBonusPercentAll = computed.DamageBonusPercentAll;
+    _damageReducePercentAll = computed.DamageReducePercentAll;
+    _accuracyBonusPercentAll = computed.AccuracyBonusPercentAll;
+    _archmasteryBonus = computed.ArchmasteryBonus;
+    _damageBonusPercentSchool = computed.DamageBonusPercentSchool;
+    _damageReducePercentSchool = computed.DamageReducePercentSchool;
+    _accuracyBonusPercentSchool = computed.AccuracyBonusPercentSchool;
+
+    // Clamp current vitals to new maximums
+    _hitpoints = computed.CurrentHitpoints;
+    _mana = computed.CurrentMana;
+    _stored.Gold = computed.CurrentGold;
+    _stored.PotionMax = computed.PotionMax;
+    _stored.PotionCharge = computed.PotionCharge;
+    _stored.ArenaPoints = computed.CurrentArenaPoints;
+}
+
+bool PlayerStats::WriteGameStats(PropertyObject& gameStats, std::string& problem) const
+{
+    PropertyFiller filler(gameStats, problem);
+    filler.Set("m_baseHitpoints", _base.Hitpoints)
+        .Set("m_hitPointBonus", _hitPointBonus)
+        .Set("m_baseMana", _base.Mana)
+        .Set("m_manaBonus", _manaBonus)
+        .Set("m_baseGoldPouch", _base.Gold)
+        .Set("m_energyMax", _base.PetEnergy)
+        .Set("m_currentHitpoints", _hitpoints)
+        .Set("m_currentGold", _stored.Gold)
+        .Set("m_currentMana", _mana)
+        .Set("m_currentArenaPoints", _stored.ArenaPoints)
+        .Set("m_potionMax", _stored.PotionMax)
+        .Set("m_potionCharge", _stored.PotionCharge)
+        .Set("m_powerPipBase", _powerPip)
+        .Set("m_powerPipBonusPercent", _powerPipBonusPercent)
+        .Set("m_pipConversionBaseAllSchools", _base.PipConversionAll)
+        .Set("m_pipConversionRating", _pipConversionRating)
+        .Set("m_criticalHitChance", _criticalHitChance)
+        .Set("m_blockChance", _blockChance)
+        .Set("m_pipConversionPercent", _pipConversionPercent)
+        .Set("m_damageBonusPercentAll", _damageBonusPercentAll)
+        .Set("m_damageReducePercentAll", _damageReducePercentAll)
+        .Set("m_accuracyBonusPercentAll", _accuracyBonusPercentAll)
+        .Set("m_archmasteryBase", _base.Archmastery)
+        .Set("m_archmasteryBonus", _archmasteryBonus)
+        .Set("m_referenceLevel", _level)
+        .Set("m_schoolID", _schoolId)
+        .Set("m_secondarySchool", _stored.SecondarySchoolId);
+
+    // Per-school damage bonus
+    for (std::size_t i = 0; i < 7; ++i)
+    {
+        std::string const field = fmt::format("m_damageBonusPercent{}", i == 0 ? "Fire" : i == 1 ? "Ice" : i == 2 ? "Storm" : i == 3 ? "Life" : i == 4 ? "Myth" : i == 5 ? "Death" : "Balance");
+        filler.Set(field, _damageBonusPercentSchool[i]);
+    }
+    for (std::size_t i = 0; i < 7; ++i)
+    {
+        std::string const field = fmt::format("m_damageReducePercent{}", i == 0 ? "Fire" : i == 1 ? "Ice" : i == 2 ? "Storm" : i == 3 ? "Life" : i == 4 ? "Myth" : i == 5 ? "Death" : "Balance");
+        filler.Set(field, _damageReducePercentSchool[i]);
+    }
+    for (std::size_t i = 0; i < 7; ++i)
+    {
+        std::string const field = fmt::format("m_accuracyBonusPercent{}", i == 0 ? "Fire" : i == 1 ? "Ice" : i == 2 ? "Storm" : i == 3 ? "Life" : i == 4 ? "Myth" : i == 5 ? "Death" : "Balance");
+        filler.Set(field, _accuracyBonusPercentSchool[i]);
+    }
+
+    filler.Set("m_purchasedCustomEmotes1", _stored.PurchasedCustomEmotes[0])
+        .Set("m_purchasedCustomEmotes2", _stored.PurchasedCustomEmotes[1])
+        .Set("m_purchasedCustomEmotes3", _stored.PurchasedCustomEmotes[2])
+        .Set("m_purchasedCustomTeleportEffects1", _stored.PurchasedCustomTeleportEffects[0])
+        .Set("m_purchasedCustomTeleportEffects2", _stored.PurchasedCustomTeleportEffects[1])
+        .Set("m_purchasedCustomTeleportEffects3", _stored.PurchasedCustomTeleportEffects[2])
+        .Set("m_showItemLock", _stored.ShowItemLock);
+    if (_shadowPipMax)
+        filler.Set("m_shadowPipMax", *_shadowPipMax);
     return problem.empty();
 }

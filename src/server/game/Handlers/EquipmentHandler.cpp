@@ -7,12 +7,16 @@
 #include "GameSession.h"
 #include "ItemMgr.h"
 #include "ItemObjectBuilder.h"
+#include "ItemSetBonusMgr.h"
+#include "ItemTemplateRecord.h"
 #include "Log.h"
 #include "ObjectFields.h"
 #include "ObjectSchemaMgr.h"
 #include "ObjectTemplateMgr.h"
 #include "PlayerLevelMgr.h"
 #include "ScriptMgr.h"
+#include "StatCalculator.h"
+#include "StatEffects.h"
 #include "StringUtil.h"
 #include "TypeRegistry.h"
 
@@ -75,6 +79,50 @@ EquipResult GameSession::EquipItem(uint64 itemGuid, std::string_view slotName)
     sScriptMgr.OnEquip(*_player, worn.Item.Guid, worn.Item.TemplateId, worn.Slot);
     LOG_INFO(EquipmentLog, "Session {} put item {} of template {} on wizard {}'s slot {}, and it wears {} item(s)", GetSessionId(), worn.Item.Guid, worn.Item.TemplateId,
         _worldGuid, worn.Slot, _equipment->Size());
+
+    // Recompute stats after equip
+    int32 oldMaxHitpoints = _player->GetStats().GetMaxHitpoints();
+    int32 oldMaxMana = _player->GetStats().GetMaxMana();
+    std::string statProblem;
+    std::vector<CharacterEquippedItem> const& equipped = _equipment->GetItems();
+    std::vector<ItemTemplateRecord const*> itemTemplates;
+    itemTemplates.reserve(equipped.size());
+    for (CharacterEquippedItem const& eq : equipped)
+    {
+        if (auto const* tmpl = templates ? templates->Find(eq.Item.TemplateId) : nullptr)
+            itemTemplates.push_back(tmpl);
+        else
+            itemTemplates.push_back(nullptr);
+    }
+    uint32 itemSetBonusTemplateId = 0;
+    std::vector<ItemSetBonusTier> setBonusTiers;
+    if (!equipped.empty() && templates)
+    {
+        ItemTemplateRecord const* firstTemplate = templates->Find(equipped[0].Item.TemplateId);
+        if (firstTemplate)
+            itemSetBonusTemplateId = firstTemplate->ItemSetBonusTemplateId;
+        if (itemSetBonusTemplateId != 0)
+        {
+            std::shared_ptr<ItemSetBonusStore const> const setBonuses = sItemSetBonusMgr.GetSetBonuses();
+            if (auto const* setBonus = setBonuses ? setBonuses->Find(itemSetBonusTemplateId) : nullptr)
+            {
+                for (ItemSetBonusTier const& tier : setBonus->Tiers)
+                    setBonusTiers.push_back(tier);
+            }
+        }
+    }
+    _player->GetStats().RecomputeStats(equipped, itemTemplates, itemSetBonusTemplateId, setBonusTiers, sPlayerLevelMgr.GetStats(), statProblem);
+    if (!statProblem.empty())
+        LOG_WARN(EquipmentLog, "Session {} could not recompute stats for wizard {} after equip: {}", GetSessionId(), _worldGuid, statProblem);
+
+    // Send health/mana updates if maximums changed
+    int32 newMaxHitpoints = _player->GetStats().GetMaxHitpoints();
+    int32 newMaxMana = _player->GetStats().GetMaxMana();
+    if (newMaxHitpoints != oldMaxHitpoints)
+        SendHealthUpdate(1);
+    if (newMaxMana != oldMaxMana)
+        SendManaUpdate(1);
+
     return change.Result;
 }
 
@@ -104,6 +152,51 @@ UnequipResult GameSession::UnequipItem(uint64 itemGuid)
     sScriptMgr.OnUnequip(*_player, itemGuid, change.Returned->TemplateId, change.TakenOff->Slot);
     LOG_INFO(EquipmentLog, "Session {} took item {} of template {} off wizard {}'s slot {}, and it wears {} item(s)", GetSessionId(), itemGuid, change.Returned->TemplateId,
         _worldGuid, change.TakenOff->Slot, _equipment->Size());
+
+    // Recompute stats after unequip
+    int32 oldMaxHitpoints = _player->GetStats().GetMaxHitpoints();
+    int32 oldMaxMana = _player->GetStats().GetMaxMana();
+    std::string statProblem;
+    std::vector<CharacterEquippedItem> const& equipped = _equipment->GetItems();
+    std::shared_ptr<ItemTemplateStore const> const templates = sItemMgr.GetItems();
+    std::vector<ItemTemplateRecord const*> itemTemplates;
+    itemTemplates.reserve(equipped.size());
+    for (CharacterEquippedItem const& eq : equipped)
+    {
+        if (templates)
+            itemTemplates.push_back(templates->Find(eq.Item.TemplateId));
+        else
+            itemTemplates.push_back(nullptr);
+    }
+    uint32 itemSetBonusTemplateId = 0;
+    std::vector<ItemSetBonusTier> setBonusTiers;
+    if (!equipped.empty() && templates)
+    {
+        ItemTemplateRecord const* firstTemplate = templates->Find(equipped[0].Item.TemplateId);
+        if (firstTemplate)
+            itemSetBonusTemplateId = firstTemplate->ItemSetBonusTemplateId;
+        if (itemSetBonusTemplateId != 0)
+        {
+            std::shared_ptr<ItemSetBonusStore const> const setBonuses = sItemSetBonusMgr.GetSetBonuses();
+            if (auto const* setBonus = setBonuses ? setBonuses->Find(itemSetBonusTemplateId) : nullptr)
+            {
+                for (ItemSetBonusTier const& tier : setBonus->Tiers)
+                    setBonusTiers.push_back(tier);
+            }
+        }
+    }
+    _player->GetStats().RecomputeStats(equipped, itemTemplates, itemSetBonusTemplateId, setBonusTiers, sPlayerLevelMgr.GetStats(), statProblem);
+    if (!statProblem.empty())
+        LOG_WARN(EquipmentLog, "Session {} could not recompute stats for wizard {} after unequip: {}", GetSessionId(), _worldGuid, statProblem);
+
+    // Send health/mana updates if maximums changed
+    int32 newMaxHitpoints = _player->GetStats().GetMaxHitpoints();
+    int32 newMaxMana = _player->GetStats().GetMaxMana();
+    if (newMaxHitpoints != oldMaxHitpoints)
+        SendHealthUpdate(1);
+    if (newMaxMana != oldMaxMana)
+        SendManaUpdate(1);
+
     return change.Result;
 }
 
@@ -174,8 +267,11 @@ void GameSession::SendEquipped(CharacterEquippedItem const& worn)
     CoreObjectTypeTablePtr const types = sObjectSchemaMgr.GetCoreObjectTypes();
     std::shared_ptr<ItemTemplateStore const> const templates = sItemMgr.GetItems();
     ItemTemplateRecord const* const itemTemplate = templates ? templates->Find(worn.Item.TemplateId) : nullptr;
+    std::shared_ptr<ObjectTemplate const> const objectTemplate = sObjectTemplateMgr.Lookup(worn.Item.TemplateId).Template;
+    std::shared_ptr<BehaviorClientClasses const> const behaviors = sObjectSchemaMgr.GetBehaviorClientClasses();
     std::string problem = !types ? std::string("the core object types are not loaded") : std::string("the items this server holds do not name its template");
-    PropertyObjectPtr const object = types && itemTemplate ? ItemObjectBuilder::Build(sTypeRegistry.GetCatalog(), *types, *itemTemplate, worn.Item, problem) : nullptr;
+    PropertyObjectPtr const object =
+        types && itemTemplate ? ItemObjectBuilder::Build(sTypeRegistry.GetCatalog(), *types, *itemTemplate, worn.Item, problem, objectTemplate.get(), behaviors.get()) : nullptr;
     std::optional<std::string> const encoded = object ? ItemObjectBuilder::Encode(GameMessages::EquipmentBehaviorEquipItem::Tag, *object, *types, problem) : std::nullopt;
     if (!encoded)
     {
@@ -233,7 +329,8 @@ void GameSession::RefreshPublicObject()
         return;
     std::vector<uint64> unheld;
     std::string problem;
-    if (!ItemObjectBuilder::FillEquipment(*_playerObject, *types, *templates, _equipment->GetItems(), unheld, problem))
+    if (!ItemObjectBuilder::FillEquipment(*_playerObject, *types, *templates, _equipment->GetItems(), unheld, problem, &sObjectTemplateMgr,
+             sObjectSchemaMgr.GetBehaviorClientClasses().get()))
     {
         LOG_WARN(EquipmentLog, "Session {} shows wizards arriving near wizard {} what it wore as it entered, since {}", GetSessionId(), _worldGuid, problem);
         return;

@@ -51,7 +51,7 @@ namespace
         return sources.Templates ? sources.Templates(static_cast<uint32>(row.TemplateId)) : TemplateLookup{ nullptr, "no template store is set" };
     }
 
-    ZoneObjectPlacement PlaceAt(Map const& map, ZoneObjectSpawn const& row, uint64 globalId, uint16 mobileId)
+    ZoneObjectPlacement PlaceAt(Map const& map, ZoneObjectSpawn const& row, uint64 globalId, uint16 mobileId, std::optional<CoreObjectHeader> coreHeader = {})
     {
         ZoneObjectPlacement placement;
         placement.GlobalId = globalId;
@@ -60,6 +60,7 @@ namespace
         placement.Location = row.Position;
         placement.Orientation = row.Orientation;
         placement.Scale = row.Scale;
+        placement.CoreHeader = coreHeader;
         return placement;
     }
 
@@ -125,7 +126,7 @@ void MapObjectChanges::Absorb(MapObjectChanges other)
 }
 
 std::optional<uint64> MapObjectSpawner::Place(Map& map, ZoneObjectSpawn const& row, MapObjectOrigin origin, uint32 spawnerIndex, MapObjectSources const& sources,
-    Map::Clock::time_point now, std::chrono::milliseconds releaseDelay, MapObjectChanges& changes, MapObjectDecorator const& decorate)
+    Map::Clock::time_point now, std::chrono::milliseconds releaseDelay, MapObjectChanges& changes, MapObjectDecorator const& decorate, std::optional<CoreObjectHeader> coreHeader)
 {
     std::string const name = RowName(row, origin, spawnerIndex);
     {
@@ -147,7 +148,7 @@ std::optional<uint64> MapObjectSpawner::Place(Map& map, ZoneObjectSpawn const& r
             Report(changes, row, false, fmt::format("{} gets no object, since instance {} has no object mobile id left", name, map.GetDynamicZoneId()));
             return std::nullopt;
         }
-        ZoneObjectPlacement const placement = PlaceAt(map, row, *globalId, *mobileId);
+        ZoneObjectPlacement const placement = PlaceAt(map, row, *globalId, *mobileId, coreHeader);
         std::string problem;
         std::optional<std::vector<uint8>> data = Encode(*found.Template, placement, sources, problem, decorate);
         if (!data)

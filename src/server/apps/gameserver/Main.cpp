@@ -20,6 +20,7 @@
 #include "CharacterRepository.h"
 #include "CustomEmoteMgr.h"
 #include "ItemMgr.h"
+#include "ItemSetBonusMgr.h"
 #include "MapMgr.h"
 #include "ObjectGuid.h"
 #include "ObjectSchemaMgr.h"
@@ -696,14 +697,16 @@ namespace
         bool LoadItems(ClientSetupResult const& setup)
         {
             sItemMgr.RegisterReloadTargets();
+            sItemSetBonusMgr.RegisterReloadTargets();
             if (!setup.Install || !sTypeRegistry.IsLoaded())
             {
                 LOG_WARN("server.gameserver", "No Wizard101 install or type dump is in use, so no item is read");
                 return true;
             }
             sItemMgr.SetInstall(setup.Install->Root);
+            sItemSetBonusMgr.SetInstall(setup.Install->Root);
             std::vector<std::string> errors;
-            if (sItemMgr.Load(errors))
+            if (sItemMgr.Load(errors) && sItemSetBonusMgr.Load(errors))
                 return true;
             for (std::string const& problem : errors)
                 LOG_ERROR("server.gameserver", "Items: {}", problem);

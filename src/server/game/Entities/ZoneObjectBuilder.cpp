@@ -25,12 +25,14 @@ PropertyObjectPtr ZoneObjectBuilder::Build(TypeCatalogPtr const& catalog, CoreOb
         problem = fmt::format("template {} has not been read from the install", objectTemplate.TemplateId);
         return nullptr;
     }
-    std::optional<CoreObjectHeader> const header = types.HeaderFor(objectTemplate.Object->GetClass(), objectTemplate.TemplateId);
+    std::optional<CoreObjectHeader> const header = placement.CoreHeader ? placement.CoreHeader : types.HeaderFor(objectTemplate.Object->GetClass(), objectTemplate.TemplateId);
     CoreObjectType const* const built = header ? types.Find(header->Block) : nullptr;
     if (!header || !built)
     {
-        problem = fmt::format("template {} is a {}, which core_template_type gives no core type, so the client would build nothing from it", objectTemplate.TemplateId,
-            objectTemplate.Object->GetClass().Name);
+        problem = placement.CoreHeader ? fmt::format("the pet's own header names core type {}, which core_object_type gives no class the client would build from",
+                                                     placement.CoreHeader->Block)
+                                       : fmt::format("template {} is a {}, which core_template_type gives no core type, so the client would build nothing from it",
+                                                     objectTemplate.TemplateId, objectTemplate.Object->GetClass().Name);
         return nullptr;
     }
     PropertyObjectPtr object = PropertyObject::Create(catalog, built->ClassName);

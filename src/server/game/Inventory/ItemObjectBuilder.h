@@ -1,6 +1,6 @@
 /*
  * Project Ambrose by Imjustchico
- * Builds the game object an item in a backpack is shown to the client as: the CoreObject header its template's class gives, an object of the class that core type builds, the item's own global id and its template's id, and encodes it into the SerializedItem field of the message that carries it, in the form that field's ObjectFields entry gives; and fills the m_itemList of the player object's inventory behavior with the objects of the items its backpack holds, an item whose template the server no longer holds left out and named; and sets the m_numItemsAllowed of that behavior, the capacity the client shows and holds the backpack to, which the server chooses because no file of the install gives one; and fills the equipment behavior, the one with an m_itemList and no m_numItemsAllowed, with the objects of the items the wizard wears, a slot entry for each naming the item and the string id of its slot, and the public list other wizards see, each entry the worn item's template id, and builds and encodes that public entry on its own for the message that shows one item put on.
+ * Builds the game object an item in a backpack is shown to the client as: the CoreObject header its template's class gives, an object of the class that core type builds, the item's own global id and its template's id, and encodes it into the SerializedItem field of the message that carries it, in the form that field's ObjectFields entry gives; and fills the m_itemList of the player object's inventory behavior with the objects of the items its backpack holds, an item whose template the server no longer holds left out and named; and sets the m_numItemsAllowed of that behavior, the capacity the client shows and holds the backpack to, which the server chooses because no file of the install gives one; and fills the equipment behavior, the one with an m_itemList and no m_numItemsAllowed, with the objects of the items the wizard wears, a slot entry for each naming the item and the string id of its slot, and the public list other wizards see, each entry the worn item's template id, and builds and encodes that public entry on its own for the message that shows one item put on; a pet item built with its template and the behavior classes named is given its template's behaviors in the order the client pairs them, and the behavior that holds the hatched time is given a hatched time of zero and a level of one, because the client reads a pet behavior at level zero as an unhatched egg whatever its hatched time says, naming it from the egg names and counting down its hatched time against the clock and refusing to put the item on, while a level-one behavior reads as a hatched pet.
  */
 
 #ifndef AMBROSE_ITEMOBJECTBUILDER_H
@@ -14,6 +14,10 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+class BehaviorClientClasses;
+struct ObjectTemplate;
+class ObjectTemplateMgr;
 
 class ItemObjectBuilder
 {
@@ -31,18 +35,22 @@ public:
     ItemObjectBuilder() = delete;
 
     static PropertyObjectPtr Build(TypeCatalogPtr const& catalog, CoreObjectTypeTable const& types, ItemTemplateRecord const& itemTemplate, CharacterItem const& item,
-        std::string& problem);
+        std::string& problem, ObjectTemplate const* objectTemplate = nullptr, BehaviorClientClasses const* behaviors = nullptr);
     static bool FillBackpack(PropertyObject& player, CoreObjectTypeTable const& types, ItemTemplateStore const& templates, std::vector<CharacterItem> const& items,
-        std::vector<uint64>& missing, std::string& problem);
+        std::vector<uint64>& missing, std::string& problem, ObjectTemplateMgr* objectTemplates = nullptr, BehaviorClientClasses const* behaviors = nullptr);
     static bool SetItemsAllowed(PropertyObject& player, uint32 capacity, std::string& problem);
     static PropertyObject* FindBackpack(PropertyValue::List& behaviors);
     static bool FillEquipment(PropertyObject& player, CoreObjectTypeTable const& types, ItemTemplateStore const& templates, std::vector<CharacterEquippedItem> const& items,
-        std::vector<uint64>& missing, std::string& problem);
+        std::vector<uint64>& missing, std::string& problem, ObjectTemplateMgr* objectTemplates = nullptr, BehaviorClientClasses const* behaviors = nullptr);
     static PropertyObject* FindEquipment(PropertyValue::List& behaviors);
     static PropertyObjectPtr BuildPublicInfo(TypeCatalogPtr const& catalog, CharacterItem const& item, std::string& problem);
     static std::optional<std::string> EncodePublicInfo(std::string_view message, PropertyObject const& info, CoreObjectTypeTable const& types, std::string& problem);
     static uint32 SlotNameId(std::string_view slot) noexcept;
     static std::optional<std::string> Encode(std::string_view message, PropertyObject const& object, CoreObjectTypeTable const& types, std::string& problem);
+
+private:
+    static bool FillPetBehaviors(PropertyObject& object, TypeCatalogPtr const& catalog, BehaviorClientClasses const& behaviors, ObjectTemplate const& objectTemplate,
+        CharacterItem const& item, std::string& problem);
 };
 
 #endif
